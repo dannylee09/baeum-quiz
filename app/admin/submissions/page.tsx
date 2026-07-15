@@ -1,5 +1,7 @@
 import { getAdminSubmissionData } from "@/lib/supabase/admin-queries";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminSubmissionsPage() {
   const { submissions, source, errorMessage } = await getAdminSubmissionData();
 

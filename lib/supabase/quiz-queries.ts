@@ -16,6 +16,7 @@ type QuizDetailQueryResult = {
   source: DataSource;
   quiz: MockQuiz | null;
   errorMessage?: string;
+  unavailableReason?: "unpublished";
 };
 
 type QuizSetRow = {
@@ -78,7 +79,7 @@ export async function getPublishedQuizSets(): Promise<QuizQueryResult> {
     return {
       source: "mock",
       quizzes: mockQuizzes.filter((quiz) => quiz.published),
-      errorMessage: "Supabase에서 퀴즈 목록을 읽지 못해 mock data를 표시합니다.",
+      errorMessage: "DB 조회 실패로 임시 퀴즈 목록을 표시 중입니다.",
     };
   }
 }
@@ -92,7 +93,6 @@ export async function getPublishedQuizWithQuestions(
       .from("quiz_sets")
       .select(quizSetSelect)
       .eq("id", quizId)
-      .eq("published", true)
       .maybeSingle();
 
     if (quizError) {
@@ -100,7 +100,20 @@ export async function getPublishedQuizWithQuestions(
     }
 
     if (!quizData) {
-      return getMockQuizDetail(quizId);
+      return {
+        source: "supabase",
+        quiz: null,
+      };
+    }
+
+    const quizRow = quizData as QuizSetRow;
+
+    if (!quizRow.published) {
+      return {
+        source: "supabase",
+        quiz: null,
+        unavailableReason: "unpublished",
+      };
     }
 
     const { data: questionData, error: questionError } = await supabase
@@ -115,7 +128,7 @@ export async function getPublishedQuizWithQuestions(
 
     return {
       source: "supabase",
-      quiz: mapQuizSetRowToQuiz(quizData as QuizSetRow, mapQuestionRows(questionData ?? [])),
+      quiz: mapQuizSetRowToQuiz(quizRow, mapQuestionRows(questionData ?? [])),
     };
   } catch {
     const fallback = getMockQuiz(quizId);
@@ -124,8 +137,8 @@ export async function getPublishedQuizWithQuestions(
       source: "mock",
       quiz: fallback ?? null,
       errorMessage: fallback
-        ? "Supabase에서 퀴즈 상세 정보를 읽지 못해 mock data를 표시합니다."
-        : "Supabase에서 퀴즈 상세 정보를 읽지 못했습니다.",
+        ? "DB 조회 실패로 임시 퀴즈 정보를 표시 중입니다."
+        : "DB에서 퀴즈 상세 정보를 읽지 못했습니다.",
     };
   }
 }
@@ -144,7 +157,7 @@ async function getQuestionCounts(quizIds: string[]): Promise<Map<string, number>
     .in("quiz_set_id", quizIds);
 
   if (error) {
-    return counts;
+    throw new Error(error.message);
   }
 
   for (const row of (data ?? []) as Array<{ quiz_set_id: string }>) {
@@ -152,18 +165,6 @@ async function getQuestionCounts(quizIds: string[]): Promise<Map<string, number>
   }
 
   return counts;
-}
-
-function getMockQuizDetail(quizId: string): QuizDetailQueryResult {
-  const fallback = getMockQuiz(quizId);
-
-  return {
-    source: "mock",
-    quiz: fallback ?? null,
-    errorMessage: fallback
-      ? "DB에서 해당 퀴즈를 찾지 못해 mock data를 표시합니다."
-      : undefined,
-  };
 }
 
 function mapQuizSetRowToQuiz(quiz: QuizSetRow, questions: Question[]): MockQuiz {

@@ -4,6 +4,8 @@ import QuizSubmissionForm from "@/app/quizzes/[quizId]/QuizSubmissionForm";
 import { getSubjectTone } from "@/lib/mock-data";
 import { getPublishedQuizWithQuestions } from "@/lib/supabase/quiz-queries";
 
+export const dynamic = "force-dynamic";
+
 type Props = {
   params: Promise<{
     quizId: string;
@@ -12,7 +14,12 @@ type Props = {
 
 export default async function QuizDetailPage({ params }: Props) {
   const { quizId } = await params;
-  const { quiz, source, errorMessage } = await getPublishedQuizWithQuestions(quizId);
+  const { quiz, source, errorMessage, unavailableReason } =
+    await getPublishedQuizWithQuestions(quizId);
+
+  if (unavailableReason === "unpublished") {
+    return <UnavailableQuizPage message="아직 공개되지 않은 퀴즈입니다." />;
+  }
 
   if (!quiz) {
     notFound();
@@ -70,6 +77,25 @@ export default async function QuizDetailPage({ params }: Props) {
           <QuizSubmissionForm quiz={quiz} />
         </div>
       </div>
+    </main>
+  );
+}
+
+function UnavailableQuizPage({ message }: { message: string }) {
+  return (
+    <main className="min-h-screen bg-zinc-50 px-4 py-10 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-xl rounded-lg border border-zinc-200 bg-white p-6 text-center shadow-sm">
+        <h1 className="text-xl font-bold text-zinc-950">{message}</h1>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">
+          관리자가 공개한 뒤 다시 확인해 주세요.
+        </p>
+        <Link
+          href="/"
+          className="mt-5 inline-flex text-sm font-semibold text-zinc-900 underline underline-offset-4"
+        >
+          공개된 퀴즈 목록으로 돌아가기
+        </Link>
+      </section>
     </main>
   );
 }

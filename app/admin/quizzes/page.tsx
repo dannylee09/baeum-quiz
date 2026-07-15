@@ -2,6 +2,8 @@ import AdminQuizCreateForm from "@/app/admin/quizzes/AdminQuizCreateForm";
 import AdminQuizRowActions from "@/app/admin/quizzes/AdminQuizRowActions";
 import { getAdminQuizList } from "@/lib/supabase/admin-queries";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminQuizzesPage() {
   const { quizzes, source, errorMessage } = await getAdminQuizList();
 

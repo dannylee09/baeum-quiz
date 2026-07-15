@@ -111,16 +111,16 @@ export default function AdminQuizCreateForm() {
 
       setMessage("퀴즈가 등록되었습니다.");
       setErrorMessage(null);
+      form.reset();
+      setSelectedFileName(null);
+      setSubjectCode("korean");
+      updateQuestionCount(2);
 
       try {
-        form.reset();
-        setSelectedFileName(null);
-        setSubjectCode("korean");
-        updateQuestionCount(2);
         router.refresh();
       } catch {
         setMessage(
-          "퀴즈가 등록되었습니다. 목록이 바로 갱신되지 않으면 브라우저를 새로고침해 주세요.",
+          "퀴즈는 등록되었지만 화면을 갱신하지 못했습니다. 브라우저를 새로고침해 주세요.",
         );
       }
     } catch (error) {

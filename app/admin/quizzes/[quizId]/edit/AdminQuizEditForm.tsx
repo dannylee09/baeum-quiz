@@ -117,7 +117,14 @@ export default function AdminQuizEditForm({ quiz }: Props) {
       }
 
       setMessage("퀴즈를 수정했습니다.");
-      router.refresh();
+
+      try {
+        router.refresh();
+      } catch {
+        setMessage(
+          "퀴즈는 수정되었지만 화면을 갱신하지 못했습니다. 브라우저를 새로고침해 주세요.",
+        );
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "퀴즈 수정 오류가 발생했습니다.");
     } finally {

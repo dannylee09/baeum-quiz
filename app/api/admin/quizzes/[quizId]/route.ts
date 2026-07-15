@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import type { AnswerType, SubjectCode } from "@/lib/types";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
@@ -179,7 +180,10 @@ export async function PATCH(request: Request, { params }: Props) {
       }
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      revalidated: revalidateQuizPaths(quizId),
+    });
   } catch (error) {
     return errorResponse("퀴즈 수정 오류", "퀴즈 수정 중 오류가 발생했습니다.", error, 500);
   }
@@ -226,10 +230,37 @@ export async function DELETE(_request: Request, { params }: Props) {
       return errorResponse("퀴즈 삭제 오류", "퀴즈를 삭제하지 못했습니다.", deleteError, 500);
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      revalidated: revalidateQuizPaths(quizId),
+    });
   } catch (error) {
     return errorResponse("퀴즈 삭제 오류", "퀴즈 삭제 중 오류가 발생했습니다.", error, 500);
   }
+}
+
+function revalidateQuizPaths(quizId: string) {
+  const paths = [
+    "/",
+    "/admin",
+    "/admin/quizzes",
+    "/admin/submissions",
+    "/admin/stats",
+    "/admin/winners",
+    `/admin/quizzes/${quizId}/edit`,
+    `/quizzes/${quizId}`,
+  ];
+  let succeeded = true;
+
+  for (const path of paths) {
+    try {
+      revalidatePath(path);
+    } catch {
+      succeeded = false;
+    }
+  }
+
+  return succeeded;
 }
 
 function unauthorizedResponse() {

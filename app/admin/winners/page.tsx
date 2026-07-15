@@ -2,6 +2,8 @@ import WinnerPicker from "@/app/admin/winners/WinnerPicker";
 import { maskStudentName, maskStudentNo } from "@/lib/mock-data";
 import { getAdminSubmissionData } from "@/lib/supabase/admin-queries";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminWinnersPage() {
   const { submissions, source, errorMessage } = await getAdminSubmissionData();
   const perfectSubmissions = submissions.filter(

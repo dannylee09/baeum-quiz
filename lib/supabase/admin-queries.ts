@@ -38,6 +38,19 @@ export type AdminDataResult = {
   errorMessage?: string;
 };
 
+export type AdminDashboardStats = {
+  quizCount: number;
+  submissionCount: number;
+  participantCount: number;
+  perfectSubmissionCount: number;
+};
+
+export type AdminDashboardResult = {
+  source: "supabase" | "mock";
+  stats: AdminDashboardStats;
+  errorMessage?: string;
+};
+
 export type AdminQuizListItem = {
   id: string;
   subjectCode: SubjectCode;
@@ -123,6 +136,17 @@ type SubmissionAnswerRow = {
   review_status: string;
 };
 
+type DashboardQuestionRow = {
+  quiz_set_id: string;
+  points: number;
+};
+
+type DashboardSubmissionRow = {
+  quiz_set_id: string;
+  student_no: string;
+  final_score: number;
+};
+
 type QuizListRow = QuizRow & {
   description: string | null;
   pdf_storage_path: string | null;
@@ -140,6 +164,58 @@ const subjectNames: Record<SubjectCode, string> = {
   english: "영어",
   math: "수학",
 };
+
+export async function getAdminDashboardData(): Promise<AdminDashboardResult> {
+  try {
+    const supabase = createAdminSupabaseClient();
+    const [quizResult, questionResult, submissionResult] = await Promise.all([
+      supabase.from("quiz_sets").select("*", { count: "exact", head: true }),
+      supabase.from("questions").select("quiz_set_id, points"),
+      supabase
+        .from("submissions")
+        .select("quiz_set_id, student_no, final_score"),
+    ]);
+
+    if (quizResult.error) {
+      throw new Error(quizResult.error.message);
+    }
+
+    if (questionResult.error) {
+      throw new Error(questionResult.error.message);
+    }
+
+    if (submissionResult.error) {
+      throw new Error(submissionResult.error.message);
+    }
+
+    return {
+      source: "supabase",
+      stats: buildDashboardStats(
+        quizResult.count ?? 0,
+        (questionResult.data ?? []) as DashboardQuestionRow[],
+        (submissionResult.data ?? []) as DashboardSubmissionRow[],
+      ),
+    };
+  } catch {
+    return {
+      source: "mock",
+      stats: {
+        quizCount: mockQuizzes.length,
+        submissionCount: mockSubmissions.length,
+        participantCount: new Set(
+          mockSubmissions.map((submission) => submission.studentNo),
+        ).size,
+        perfectSubmissionCount: mockSubmissions.filter(
+          (submission) =>
+            submission.maxScore > 0 &&
+            submission.finalScore === submission.maxScore,
+        ).length,
+      },
+      errorMessage:
+        "Supabase에서 대시보드 통계를 읽지 못해 임시 데이터로 표시합니다.",
+    };
+  }
+}
 
 export async function getAdminSubmissionData(): Promise<AdminDataResult> {
   try {
@@ -191,7 +267,7 @@ export async function getAdminSubmissionData(): Promise<AdminDataResult> {
     return {
       source: "mock",
       submissions: mockSubmissions.map(mapMockSubmission),
-      errorMessage: "Supabase에서 관리자 제출 데이터를 읽지 못해 mock data를 표시합니다.",
+      errorMessage: "DB 조회 실패로 임시 제출 데이터를 표시 중입니다.",
     };
   }
 }
@@ -267,7 +343,7 @@ export async function getAdminQuizList(): Promise<AdminQuizListResult> {
         ).length,
         createdAt: quiz.createdAt,
       })),
-      errorMessage: "Supabase에서 퀴즈 목록을 읽지 못했습니다.",
+      errorMessage: "DB 조회 실패로 임시 퀴즈 목록을 표시 중입니다.",
     };
   }
 }
@@ -423,4 +499,32 @@ function countByQuizId(rows: Array<{ quiz_set_id: string }>) {
   }
 
   return counts;
+}
+
+function buildDashboardStats(
+  quizCount: number,
+  questions: DashboardQuestionRow[],
+  submissions: DashboardSubmissionRow[],
+): AdminDashboardStats {
+  const maxScoreByQuizId = new Map<string, number>();
+
+  for (const question of questions) {
+    maxScoreByQuizId.set(
+      question.quiz_set_id,
+      (maxScoreByQuizId.get(question.quiz_set_id) ?? 0) + question.points,
+    );
+  }
+
+  return {
+    quizCount,
+    submissionCount: submissions.length,
+    participantCount: new Set(
+      submissions.map((submission) => submission.student_no),
+    ).size,
+    perfectSubmissionCount: submissions.filter((submission) => {
+      const maxScore = maxScoreByQuizId.get(submission.quiz_set_id) ?? 0;
+
+      return maxScore > 0 && submission.final_score === maxScore;
+    }).length,
+  };
 }

@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import AdminQuizEditForm from "@/app/admin/quizzes/[quizId]/edit/AdminQuizEditForm";
 import { getAdminQuizForEdit } from "@/lib/supabase/admin-queries";
 
+export const dynamic = "force-dynamic";
+
 type Props = {
   params: Promise<{
     quizId: string;

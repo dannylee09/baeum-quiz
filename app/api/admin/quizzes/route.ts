@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import type { AnswerType, SubjectCode } from "@/lib/types";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
@@ -103,10 +104,37 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ quizId: quizData.id });
+    return NextResponse.json({
+      quizId: quizData.id,
+      revalidated: revalidateQuizPaths(quizData.id),
+    });
   } catch (error) {
     return errorResponse("등록 오류", "퀴즈 등록 중 오류가 발생했습니다.", error, 500);
   }
+}
+
+function revalidateQuizPaths(quizId: string) {
+  const paths = [
+    "/",
+    "/admin",
+    "/admin/quizzes",
+    "/admin/submissions",
+    "/admin/stats",
+    "/admin/winners",
+    `/admin/quizzes/${quizId}/edit`,
+    `/quizzes/${quizId}`,
+  ];
+  let succeeded = true;
+
+  for (const path of paths) {
+    try {
+      revalidatePath(path);
+    } catch {
+      succeeded = false;
+    }
+  }
+
+  return succeeded;
 }
 
 function unauthorizedResponse() {

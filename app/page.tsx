@@ -2,6 +2,8 @@ import Link from "next/link";
 import { getSubjectTone } from "@/lib/mock-data";
 import { getPublishedQuizSets } from "@/lib/supabase/quiz-queries";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const { quizzes, source, errorMessage } = await getPublishedQuizSets();
 
@@ -16,8 +18,7 @@ export default async function Home() {
             배움나눔 퀴즈
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-600">
-            국어, 영어, 수학 문제를 확인하고 답안을 제출하세요. 현재 화면은
-            Supabase 연결 전 mock data로 구성된 학생용 흐름입니다.
+            국어, 영어, 수학 퀴즈를 선택해 답안을 제출하세요.
           </p>
         </section>
 
@@ -26,7 +27,7 @@ export default async function Home() {
             <div>
               <h2 className="text-xl font-bold text-zinc-950">진행 가능한 퀴즈</h2>
               <p className="mt-1 text-sm text-zinc-600">
-                과목별 예시 퀴즈를 선택해 제출 흐름을 확인할 수 있습니다.
+                원하는 과목의 공개된 퀴즈를 선택해 참여할 수 있습니다.
               </p>
             </div>
             <p className="hidden text-sm text-zinc-500 sm:block">

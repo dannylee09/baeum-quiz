@@ -1,6 +1,8 @@
 import type { AdminSubmission } from "@/lib/supabase/admin-queries";
 import { getAdminSubmissionData } from "@/lib/supabase/admin-queries";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminStatsPage() {
   const { submissions, source, errorMessage } = await getAdminSubmissionData();
   const subjectStats = getSubjectStats(submissions);

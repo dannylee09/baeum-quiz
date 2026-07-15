@@ -48,7 +48,16 @@ export default function AdminQuizRowActions({
       }
 
       setMessage(!published ? "공개로 전환했습니다." : "비공개로 전환했습니다.");
-      router.refresh();
+
+      try {
+        router.refresh();
+      } catch {
+        setMessage(
+          !published
+            ? "공개로 전환했지만 화면을 갱신하지 못했습니다. 브라우저를 새로고침해 주세요."
+            : "비공개로 전환했지만 화면을 갱신하지 못했습니다. 브라우저를 새로고침해 주세요.",
+        );
+      }
     } catch {
       setMessage("공개 상태 변경 오류: 서버 응답을 처리하지 못했습니다.");
     } finally {
@@ -85,7 +94,14 @@ export default function AdminQuizRowActions({
       }
 
       setMessage("퀴즈를 삭제했습니다.");
-      router.refresh();
+
+      try {
+        router.refresh();
+      } catch {
+        setMessage(
+          "퀴즈는 삭제되었지만 화면을 갱신하지 못했습니다. 브라우저를 새로고침해 주세요.",
+        );
+      }
     } catch {
       setMessage("퀴즈 삭제 오류: 서버 응답을 처리하지 못했습니다.");
     } finally {
