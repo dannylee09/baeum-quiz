@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import QuizSubmissionForm, {
   type StudentQuiz,
 } from "@/app/quizzes/[quizId]/QuizSubmissionForm";
+import ProblemFileViewer from "@/app/quizzes/[quizId]/ProblemFileViewer";
 import { getSubjectTone, type MockQuiz } from "@/lib/mock-data";
 import { getPublishedQuizWithQuestions } from "@/lib/supabase/quiz-queries";
 
@@ -29,14 +30,12 @@ export default async function QuizDetailPage({ params }: Props) {
 
   const problemFilePath = quiz.questionFilePath ?? quiz.pdfStoragePath;
   const problemFileUrl = quiz.questionFileUrl ?? problemFilePath;
-  const problemFileMimeType =
-    quiz.questionFileMimeType ?? inferMimeTypeFromPath(problemFilePath);
   const problemFileName =
     quiz.questionFileOriginalName ?? problemFilePath ?? quiz.hwpFileName ?? null;
 
   return (
-    <main className="min-h-screen bg-zinc-50 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
+    <main className="min-h-screen bg-zinc-50 px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
         <Link href="/" className="text-sm font-medium text-zinc-600 hover:text-zinc-950">
           ← 퀴즈 목록으로
         </Link>
@@ -47,32 +46,31 @@ export default async function QuizDetailPage({ params }: Props) {
           </div>
         ) : null}
 
-        <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <section className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-            <span
-              className={`inline-flex rounded-full border px-3 py-1 text-sm font-medium ${getSubjectTone(
-                quiz.subjectCode,
-              )}`}
-            >
-              {quiz.subjectName}
-            </span>
-            <h1 className="mt-4 text-2xl font-bold tracking-tight text-zinc-950 sm:text-3xl">
-              {quiz.title}
-            </h1>
-            <p className="mt-3 text-base leading-7 text-zinc-600">
-              {quiz.description}
-            </p>
+        <div className="mt-4 grid gap-5 sm:mt-5 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,430px)] xl:items-start">
+          <section className="-mx-3 w-[calc(100%+1.5rem)] max-w-none overflow-hidden border-y border-zinc-200 bg-white shadow-sm sm:mx-0 sm:w-auto sm:rounded-lg sm:border">
+            <div className="px-4 py-5 sm:p-6">
+              <span
+                className={`inline-flex rounded-full border px-3 py-1 text-sm font-medium ${getSubjectTone(
+                  quiz.subjectCode,
+                )}`}
+              >
+                {quiz.subjectName}
+              </span>
+              <h1 className="mt-4 text-2xl font-bold tracking-tight text-zinc-950 sm:text-3xl">
+                {quiz.title}
+              </h1>
+              <p className="mt-3 text-base leading-7 text-zinc-600">
+                {quiz.description}
+              </p>
+            </div>
 
-            <div className="mt-6 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-5">
-              <p className="text-sm font-semibold text-zinc-950">문제 파일 미리보기</p>
-              <div className="mt-3 overflow-hidden rounded-md border border-zinc-200 bg-white">
-                <ProblemFilePreview
-                  fileName={problemFileName}
-                  filePath={problemFilePath}
-                  fileUrl={problemFileUrl}
-                  mimeType={problemFileMimeType}
-                />
-              </div>
+            <div className="sm:px-6 sm:pb-6">
+              <ProblemFileViewer
+                fileName={problemFileName}
+                filePath={problemFilePath}
+                fileUrl={problemFileUrl}
+                mimeType={quiz.questionFileMimeType ?? null}
+              />
             </div>
           </section>
 
@@ -113,128 +111,4 @@ function UnavailableQuizPage({ message }: { message: string }) {
       </section>
     </main>
   );
-}
-
-function ProblemFilePreview({
-  fileName,
-  filePath,
-  fileUrl,
-  mimeType,
-}: {
-  fileName: string | null;
-  filePath: string | null;
-  fileUrl: string | null;
-  mimeType: string | null;
-}) {
-  if (!filePath || !fileUrl) {
-    return (
-      <div className="flex min-h-64 items-center justify-center p-6 text-center">
-        <div>
-          <p className="text-base font-medium text-zinc-900">
-            등록된 문제 파일이 없습니다.
-          </p>
-          <p className="mt-2 text-sm leading-6 text-zinc-600">
-            관리자 등록이 완료되면 이 영역에서 문제 파일을 확인할 수 있습니다.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isPdf(filePath, mimeType)) {
-    return (
-      <div>
-        <iframe
-          src={fileUrl}
-          title={fileName ?? "문제 파일 PDF"}
-          className="h-[70vh] w-full bg-white"
-        />
-        <FileLink fileName={fileName} fileUrl={fileUrl} />
-      </div>
-    );
-  }
-
-  if (isImage(filePath, mimeType)) {
-    return (
-      <div className="bg-zinc-100">
-        <img
-          src={fileUrl}
-          alt={fileName ?? "문제 파일 이미지"}
-          className="max-h-[70vh] w-full object-contain"
-        />
-        <FileLink fileName={fileName} fileUrl={fileUrl} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex min-h-64 items-center justify-center p-6 text-center">
-      <div>
-        <p className="text-base font-medium text-zinc-900">
-          {fileName ?? "문제 파일"}
-        </p>
-        <p className="mt-2 text-sm leading-6 text-zinc-600">
-          미리보기를 지원하지 않는 형식입니다. 아래 링크로 파일을 확인해 주세요.
-        </p>
-        <FileLink fileName="문제 파일 열기" fileUrl={fileUrl} />
-      </div>
-    </div>
-  );
-}
-
-function FileLink({ fileName, fileUrl }: { fileName: string | null; fileUrl: string }) {
-  return (
-    <div className="border-t border-zinc-200 bg-white px-4 py-3 text-sm">
-      <a
-        href={fileUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="font-medium text-zinc-900 underline underline-offset-4"
-      >
-        {fileName ?? "문제 파일 새 창에서 열기"}
-      </a>
-    </div>
-  );
-}
-
-function isPdf(path: string, mimeType: string | null) {
-  return mimeType === "application/pdf" || path.toLowerCase().split("?")[0].endsWith(".pdf");
-}
-
-function isImage(path: string, mimeType: string | null) {
-  const normalized = path.toLowerCase().split("?")[0];
-
-  return (
-    mimeType?.startsWith("image/") ||
-    normalized.endsWith(".png") ||
-    normalized.endsWith(".jpg") ||
-    normalized.endsWith(".jpeg") ||
-    normalized.endsWith(".webp")
-  );
-}
-
-function inferMimeTypeFromPath(path: string | null) {
-  if (!path) {
-    return null;
-  }
-
-  const normalized = path.toLowerCase().split("?")[0];
-
-  if (normalized.endsWith(".pdf")) {
-    return "application/pdf";
-  }
-
-  if (normalized.endsWith(".png")) {
-    return "image/png";
-  }
-
-  if (normalized.endsWith(".jpg") || normalized.endsWith(".jpeg")) {
-    return "image/jpeg";
-  }
-
-  if (normalized.endsWith(".webp")) {
-    return "image/webp";
-  }
-
-  return null;
 }

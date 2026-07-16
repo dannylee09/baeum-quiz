@@ -23,7 +23,7 @@ export type StudentQuiz = Omit<MockQuiz, "questions"> & {
 };
 
 const fieldClassName =
-  "mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-950 outline-none placeholder:text-zinc-700 focus:border-zinc-900 disabled:text-zinc-950 disabled:opacity-100";
+  "mt-2 min-h-12 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-950 outline-none placeholder:text-zinc-700 focus:border-zinc-900 disabled:text-zinc-950 disabled:opacity-100";
 
 export default function QuizSubmissionForm({ quiz }: Props) {
   const router = useRouter();
@@ -133,10 +133,10 @@ export default function QuizSubmissionForm({ quiz }: Props) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-6"
+      className="space-y-4 sm:space-y-6"
     >
       <input type="hidden" name="quizId" value={quiz.id} />
-      <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
         <h2 className="text-lg font-semibold text-zinc-950">학생 정보</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="block">
@@ -164,7 +164,7 @@ export default function QuizSubmissionForm({ quiz }: Props) {
         </div>
       </section>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-zinc-950">답안 입력</h2>
@@ -261,7 +261,7 @@ export default function QuizSubmissionForm({ quiz }: Props) {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full rounded-md bg-zinc-950 px-5 py-3 text-base font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
+        className="min-h-14 w-full rounded-md bg-zinc-950 px-5 py-4 text-base font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
       >
         {isSubmitting
           ? retryRequired
