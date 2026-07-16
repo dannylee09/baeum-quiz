@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import QuizSubmissionForm from "@/app/quizzes/[quizId]/QuizSubmissionForm";
-import { getSubjectTone } from "@/lib/mock-data";
+import QuizSubmissionForm, {
+  type StudentQuiz,
+} from "@/app/quizzes/[quizId]/QuizSubmissionForm";
+import { getSubjectTone, type MockQuiz } from "@/lib/mock-data";
 import { getPublishedQuizWithQuestions } from "@/lib/supabase/quiz-queries";
 
 export const dynamic = "force-dynamic";
@@ -74,11 +76,24 @@ export default async function QuizDetailPage({ params }: Props) {
             </div>
           </section>
 
-          <QuizSubmissionForm quiz={quiz} />
+          <QuizSubmissionForm quiz={toStudentQuiz(quiz)} />
         </div>
       </div>
     </main>
   );
+}
+
+function toStudentQuiz(quiz: MockQuiz): StudentQuiz {
+  return {
+    ...quiz,
+    questions: quiz.questions.map((question) => ({
+      id: question.id,
+      quizSetId: question.quizSetId,
+      questionNo: question.questionNo,
+      answerType: question.answerType,
+      points: question.points,
+    })),
+  };
 }
 
 function UnavailableQuizPage({ message }: { message: string }) {

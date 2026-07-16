@@ -5,6 +5,7 @@ import {
   gradeAnswer,
   gradeSubmission,
   normalizeChoiceAnswer,
+  shouldRequestRetry,
 } from "@/lib/quiz/grading";
 
 const questions: Question[] = [
@@ -74,5 +75,19 @@ describe("gradeSubmission", () => {
     assert.equal(result.studentNo, "20501");
     assert.equal(result.studentName, "김학생");
     assert.equal(result.answers.length, 2);
+  });
+});
+
+describe("shouldRequestRetry", () => {
+  it("첫 제출이 만점이면 바로 최종 저장 대상으로 처리한다", () => {
+    assert.equal(shouldRequestRetry(5, 5, false), false);
+  });
+
+  it("첫 제출이 만점이 아니면 재도전을 요청한다", () => {
+    assert.equal(shouldRequestRetry(2, 5, false), true);
+  });
+
+  it("두 번째 제출은 점수와 관계없이 최종 저장 대상으로 처리한다", () => {
+    assert.equal(shouldRequestRetry(2, 5, true), false);
   });
 });

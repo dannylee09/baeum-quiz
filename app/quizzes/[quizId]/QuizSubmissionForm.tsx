@@ -2,26 +2,24 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
-import type { GradedAnswer, GradedSubmission } from "@/lib/types";
+import type { GradedSubmission, Question } from "@/lib/types";
 import type { MockQuiz } from "@/lib/mock-data";
 
-type StoredAnswer = GradedAnswer & {
-  correctAnswer: string;
-  normalizedCorrectAnswer: string | null;
-};
-
-type StoredResult = Omit<GradedSubmission, "answers"> & {
+type StoredResult = GradedSubmission & {
   submissionId: string;
   quizTitle: string;
   subjectName: string;
   maxScore: number;
   submittedAt: string;
   questionNumbers: Record<string, number>;
-  answers: StoredAnswer[];
 };
 
 type Props = {
-  quiz: MockQuiz;
+  quiz: StudentQuiz;
+};
+
+export type StudentQuiz = Omit<MockQuiz, "questions"> & {
+  questions: Array<Omit<Question, "correctAnswer">>;
 };
 
 const fieldClassName =
@@ -33,6 +31,8 @@ export default function QuizSubmissionForm({ quiz }: Props) {
   const [studentName, setStudentName] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [retryMessage, setRetryMessage] = useState<string | null>(null);
+  const [retryRequired, setRetryRequired] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const maxScore = useMemo(
@@ -87,6 +87,7 @@ export default function QuizSubmissionForm({ quiz }: Props) {
           quizSetId: quiz.id,
           studentNo: studentNo.trim(),
           studentName: studentName.trim(),
+          isFinalAttempt: retryRequired,
           answers: quiz.questions.map((question) => ({
             questionId: question.id,
             rawAnswer: String(formData.get(question.id) ?? ""),
@@ -96,11 +97,27 @@ export default function QuizSubmissionForm({ quiz }: Props) {
 
       const data = (await response.json()) as {
         result?: StoredResult;
+        needsRetry?: boolean;
+        message?: string;
         errorMessage?: string;
       };
 
-      if (!response.ok || !data.result) {
+      if (!response.ok) {
         setSubmitError(data.errorMessage ?? "제출 저장 중 오류가 발생했습니다.");
+        return;
+      }
+
+      if (data.needsRetry) {
+        setRetryRequired(true);
+        setRetryMessage(
+          data.message ??
+            "아직 맞지 않은 문항이 있어요. 답안을 다시 확인한 뒤 한 번 더 제출해 보세요.",
+        );
+        return;
+      }
+
+      if (!data.result) {
+        setSubmitError("제출 결과를 확인할 수 없습니다.");
         return;
       }
 
@@ -231,12 +248,28 @@ export default function QuizSubmissionForm({ quiz }: Props) {
         </div>
       </section>
 
+      {retryMessage ? (
+        <div
+          role="alert"
+          className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium leading-6 text-amber-800"
+        >
+          <p>{retryMessage}</p>
+          <p className="mt-1">입력한 학생 정보와 답안은 그대로 유지됩니다.</p>
+        </div>
+      ) : null}
+
       <button
         type="submit"
         disabled={isSubmitting}
         className="w-full rounded-md bg-zinc-950 px-5 py-3 text-base font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
       >
-        답안 제출하기
+        {isSubmitting
+          ? retryRequired
+            ? "다시 제출 중..."
+            : "제출 중..."
+          : retryRequired
+            ? "다시 제출하기"
+            : "답안 제출하기"}
       </button>
 
       {submitError ? (

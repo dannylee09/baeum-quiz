@@ -64,6 +64,14 @@ export function gradeSubmission(
   };
 }
 
+export function shouldRequestRetry(
+  totalScore: number,
+  maxScore: number,
+  isFinalAttempt: boolean,
+) {
+  return !isFinalAttempt && totalScore < maxScore;
+}
+
 function gradeChoiceAnswer(question: Question, rawAnswer: string): GradedAnswer {
   const normalizedAnswer = normalizeChoiceAnswer(rawAnswer);
   const normalizedCorrectAnswer = normalizeChoiceAnswer(question.correctAnswer);

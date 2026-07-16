@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
 import type {
   AnswerType,
-  GradedAnswer,
   GradedSubmission,
   Question,
   SubjectCode,
   SubmissionAnswerInput,
 } from "@/lib/types";
-import { gradeSubmission, normalizeChoiceAnswer } from "@/lib/quiz/grading";
-import { normalizeMathAnswer } from "@/lib/quiz/math-answer";
+import { gradeSubmission, shouldRequestRetry } from "@/lib/quiz/grading";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 type SubmissionPayload = {
@@ -16,6 +14,7 @@ type SubmissionPayload = {
   studentNo?: unknown;
   studentName?: unknown;
   answers?: unknown;
+  isFinalAttempt?: unknown;
 };
 
 type QuizRow = {
@@ -34,20 +33,17 @@ type QuestionRow = {
   points: number;
 };
 
-type StoredAnswer = GradedAnswer & {
-  correctAnswer: string;
-  normalizedCorrectAnswer: string | null;
-};
-
-type StoredResult = Omit<GradedSubmission, "answers"> & {
+type StoredResult = GradedSubmission & {
   submissionId: string;
   quizTitle: string;
   subjectName: string;
   maxScore: number;
   submittedAt: string;
   questionNumbers: Record<string, number>;
-  answers: StoredAnswer[];
 };
+
+const retryMessage =
+  "아직 맞지 않은 문항이 있어요. 답안을 다시 확인한 뒤 한 번 더 제출해 보세요.";
 
 const subjectNames: Record<SubjectCode, string> = {
   korean: "국어",
@@ -119,6 +115,24 @@ export async function POST(request: Request) {
       return badRequest(invalidAnswer.errorMessage ?? "답안 형식이 올바르지 않습니다.");
     }
 
+    const maxScore = questions.reduce(
+      (total, question) => total + question.points,
+      0,
+    );
+
+    if (
+      shouldRequestRetry(
+        graded.totalScore,
+        maxScore,
+        parsed.value.isFinalAttempt,
+      )
+    ) {
+      return NextResponse.json({
+        needsRetry: true,
+        message: retryMessage,
+      });
+    }
+
     const submittedAt = new Date().toISOString();
     const { data: submissionData, error: submissionError } = await supabase
       .from("submissions")
@@ -165,6 +179,7 @@ export async function POST(request: Request) {
         submissionData.created_at ?? submittedAt,
         quizData as QuizRow,
         questions,
+        maxScore,
       ),
     });
   } catch {
@@ -180,6 +195,13 @@ function parseSubmissionPayload(payload: SubmissionPayload) {
   const studentNo = typeof payload.studentNo === "string" ? payload.studentNo.trim() : "";
   const studentName =
     typeof payload.studentName === "string" ? payload.studentName.trim() : "";
+
+  if (
+    payload.isFinalAttempt !== undefined &&
+    typeof payload.isFinalAttempt !== "boolean"
+  ) {
+    return { ok: false as const, errorMessage: "제출 시도 정보가 올바르지 않습니다." };
+  }
 
   if (!quizSetId) {
     return { ok: false as const, errorMessage: "퀴즈 정보가 올바르지 않습니다." };
@@ -212,6 +234,7 @@ function parseSubmissionPayload(payload: SubmissionPayload) {
       quizSetId,
       studentNo,
       studentName,
+      isFinalAttempt: payload.isFinalAttempt === true,
       answerByQuestionId: new Map(
         answers.map((answer) => [answer.questionId, answer.rawAnswer]),
       ),
@@ -245,39 +268,19 @@ function buildStoredResult(
   submittedAt: string,
   quiz: QuizRow,
   questions: Question[],
+  maxScore: number,
 ): StoredResult {
   return {
     ...graded,
     submissionId,
     quizTitle: quiz.title,
     subjectName: subjectNames[quiz.subject_code],
-    maxScore: questions.reduce((total, question) => total + question.points, 0),
+    maxScore,
     submittedAt,
     questionNumbers: Object.fromEntries(
       questions.map((question) => [question.id, question.questionNo]),
     ),
-    answers: graded.answers.map((answer) => {
-      const question = questions.find((item) => item.id === answer.questionId);
-      const correctAnswer = question?.correctAnswer ?? "";
-
-      return {
-        ...answer,
-        correctAnswer,
-        normalizedCorrectAnswer: question
-          ? normalizeCorrectAnswer(question.answerType, correctAnswer)
-          : null,
-      };
-    }),
   };
-}
-
-function normalizeCorrectAnswer(answerType: AnswerType, correctAnswer: string) {
-  const normalized =
-    answerType === "choice"
-      ? normalizeChoiceAnswer(correctAnswer)
-      : normalizeMathAnswer(correctAnswer);
-
-  return normalized.ok ? normalized.value : null;
 }
 
 function badRequest(errorMessage: string) {

@@ -3,21 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import type { GradedAnswer, GradedSubmission } from "@/lib/types";
+import type { GradedSubmission } from "@/lib/types";
 
-export type StoredAnswer = GradedAnswer & {
-  correctAnswer?: string;
-  normalizedCorrectAnswer?: string | null;
-};
-
-export type StoredResult = Omit<GradedSubmission, "answers"> & {
+export type StoredResult = GradedSubmission & {
   submissionId: string;
   quizTitle: string;
   subjectName: string;
   maxScore: number;
   submittedAt: string;
   questionNumbers: Record<string, number>;
-  answers: StoredAnswer[];
 };
 
 export default function ResultView() {
@@ -30,11 +24,17 @@ export default function ResultView() {
       return;
     }
 
+    let storedResult: StoredResult | null = null;
+
     try {
-      setResult(JSON.parse(rawResult) as StoredResult);
+      storedResult = JSON.parse(rawResult) as StoredResult;
     } catch {
-      setResult(null);
+      storedResult = null;
     }
+
+    // sessionStorage는 브라우저에서 마운트된 뒤에만 읽을 수 있습니다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setResult(storedResult);
   }, []);
 
   useEffect(() => {
@@ -127,18 +127,6 @@ export default function ResultView() {
                   채점용으로 정리된 답:{" "}
                   <span className="font-medium text-zinc-950">
                     {answer.normalizedAnswer ?? "-"}
-                  </span>
-                </p>
-                <p>
-                  정답:{" "}
-                  <span className="font-medium text-zinc-950">
-                    {answer.correctAnswer ?? "-"}
-                  </span>
-                </p>
-                <p>
-                  채점용으로 정리된 정답:{" "}
-                  <span className="font-medium text-zinc-950">
-                    {answer.normalizedCorrectAnswer ?? "-"}
                   </span>
                 </p>
                 {answer.errorMessage && (
