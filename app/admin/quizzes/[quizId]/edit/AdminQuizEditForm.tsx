@@ -1,17 +1,13 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AdminQuizEditData } from "@/lib/supabase/admin-queries";
+import { useQuestionFileUpload } from "@/lib/uploads/use-question-file-upload";
+import QuestionFileUpload from "../../QuestionFileUpload";
 
 type Props = {
   quiz: AdminQuizEditData;
-};
-
-type UploadedQuestionFile = {
-  path: string;
-  mimeType: string;
-  originalName: string;
 };
 
 type ApiError = {
@@ -25,11 +21,6 @@ type ApiError = {
 
 const fieldClassName =
   "mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-950 outline-none placeholder:text-zinc-700 focus:border-zinc-900 disabled:text-zinc-950 disabled:opacity-100";
-
-const fileFieldClassName =
-  "mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-950 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-950 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white";
-
-const maxFileSize = 10 * 1024 * 1024;
 
 export default function AdminQuizEditForm({ quiz }: Props) {
   const router = useRouter();
@@ -45,7 +36,8 @@ export default function AdminQuizEditForm({ quiz }: Props) {
     quiz.questionFileOriginalName ?? "",
   );
   const [published, setPublished] = useState(quiz.published);
-  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const upload = useQuestionFileUpload();
+  const submittingRef = useRef(false);
   const [answers, setAnswers] = useState(
     quiz.questions.map((question) => ({
       id: question.id,
@@ -68,15 +60,14 @@ export default function AdminQuizEditForm({ quiz }: Props) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = event.currentTarget;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setMessage(null);
     setErrorMessage(null);
     setIsSubmitting(true);
 
-    const formData = new FormData(form);
-
     try {
-      const uploadedFile = await uploadSelectedQuestionFile(formData.get("questionFile"));
+      const uploadedFile = await upload.ensureUploaded();
       const nextPath = uploadedFile?.path ?? pdfStoragePath;
       const nextMimeType = uploadedFile?.mimeType ?? questionFileMimeType;
       const nextOriginalName = uploadedFile?.originalName ?? questionFileOriginalName;
@@ -112,8 +103,7 @@ export default function AdminQuizEditForm({ quiz }: Props) {
         setPdfStoragePath(uploadedFile.path);
         setQuestionFileMimeType(uploadedFile.mimeType);
         setQuestionFileOriginalName(uploadedFile.originalName);
-        setSelectedFileName(null);
-        form.reset();
+        upload.reset();
       }
 
       setMessage("퀴즈를 수정했습니다.");
@@ -128,6 +118,7 @@ export default function AdminQuizEditForm({ quiz }: Props) {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "퀴즈 수정 오류가 발생했습니다.");
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   }
@@ -151,6 +142,8 @@ export default function AdminQuizEditForm({ quiz }: Props) {
           <span className="text-sm font-medium text-zinc-700">제목</span>
           <input
             required
+            maxLength={200}
+            disabled={isSubmitting}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             className={fieldClassName}
@@ -161,36 +154,23 @@ export default function AdminQuizEditForm({ quiz }: Props) {
           <span className="text-sm font-medium text-zinc-700">설명</span>
           <textarea
             rows={3}
+            maxLength={4000}
+            disabled={isSubmitting}
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             className={fieldClassName}
           />
         </label>
 
-        <label className="block">
-          <span className="text-sm font-medium text-zinc-700">문제 파일 새로 업로드</span>
-          <input
-            name="questionFile"
-            type="file"
-            accept="application/pdf,image/png,image/jpeg,image/webp"
-            className={fileFieldClassName}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              setSelectedFileName(file?.name ?? null);
-            }}
-          />
-          <span className="mt-2 block text-sm text-zinc-600">
-            {selectedFileName
-              ? `선택한 파일: ${selectedFileName}`
-              : "새 파일을 선택하지 않으면 기존 파일 정보를 유지합니다."}
-          </span>
-        </label>
+        <QuestionFileUpload upload={upload} disabled={isSubmitting} existingName={questionFileOriginalName || pdfStoragePath || undefined} />
 
         <label className="block">
           <span className="text-sm font-medium text-zinc-700">
             문제 파일 링크 또는 저장 경로
           </span>
           <input
+            maxLength={2000}
+            disabled={isSubmitting}
             value={pdfStoragePath}
             onChange={(event) => {
               setPdfStoragePath(event.target.value);
@@ -208,6 +188,7 @@ export default function AdminQuizEditForm({ quiz }: Props) {
         <label className="flex items-center gap-2 text-sm font-medium text-zinc-700">
           <input
             type="checkbox"
+            disabled={isSubmitting}
             checked={published}
             onChange={(event) => setPublished(event.target.checked)}
             className="h-4 w-4 rounded border-zinc-300"
@@ -225,6 +206,8 @@ export default function AdminQuizEditForm({ quiz }: Props) {
                 </span>
                 <input
                   required
+                  maxLength={100}
+                  disabled={isSubmitting}
                   value={answer.correctAnswer}
                   onChange={(event) => updateAnswer(index, event.target.value)}
                   className={fieldClassName}
@@ -236,13 +219,13 @@ export default function AdminQuizEditForm({ quiz }: Props) {
         </div>
 
         {message ? (
-          <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+          <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
             {message}
           </p>
         ) : null}
 
         {errorMessage ? (
-          <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
             {errorMessage}
           </p>
         ) : null}
@@ -250,13 +233,14 @@ export default function AdminQuizEditForm({ quiz }: Props) {
         <div className="flex flex-wrap gap-2">
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || upload.status === "checking" || upload.status === "uploading"}
             className="rounded-md bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
           >
-            {isSubmitting ? "수정 중..." : "수정 저장"}
+            {isSubmitting ? (upload.status === "uploading" ? "문제 파일 업로드 중…" : "퀴즈 저장 중…") : "수정 저장"}
           </button>
           <button
             type="button"
+            disabled={isSubmitting || upload.status === "uploading"}
             onClick={() => router.push("/admin/quizzes")}
             className="rounded-md border border-zinc-300 bg-white px-5 py-3 text-sm font-semibold text-zinc-900 hover:border-zinc-900"
           >
@@ -268,42 +252,8 @@ export default function AdminQuizEditForm({ quiz }: Props) {
   );
 }
 
-async function uploadSelectedQuestionFile(value: FormDataEntryValue | null) {
-  if (!(value instanceof File) || value.size === 0) {
-    return null;
-  }
-
-  if (value.size > maxFileSize) {
-    throw new Error("파일 업로드 오류: 문제 파일은 10MB 이하만 업로드할 수 있습니다.");
-  }
-
-  const formData = new FormData();
-  formData.append("file", value);
-
-  const response = await fetch("/api/admin/quiz-files", {
-    method: "POST",
-    body: formData,
-  });
-  const data = (await response.json()) as UploadedQuestionFile & ApiError;
-
-  if (!response.ok || !data.path) {
-    throw new Error(formatError(data, "파일 업로드 오류"));
-  }
-
-  return {
-    path: data.path,
-    mimeType: data.mimeType,
-    originalName: data.originalName,
-  };
-}
-
 function formatError(data: ApiError, fallbackStage: string) {
   const stage = data.errorStage ?? fallbackStage;
   const message = data.errorMessage ?? "서버가 오류 원인을 반환하지 않았습니다.";
-  const detail =
-    data.error?.name || data.error?.message
-      ? ` (${data.error.name ?? "Error"}: ${data.error.message ?? "Unknown error"})`
-      : "";
-
-  return `${stage}: ${message}${detail}`;
+  return `${stage}: ${message}`;
 }

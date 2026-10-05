@@ -11,7 +11,7 @@ export default async function AdminQuizzesPage() {
     <div className="space-y-6">
       <AdminQuizCreateForm />
 
-      {source === "mock" && errorMessage ? (
+      {source === "error" && errorMessage ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {errorMessage}
         </div>

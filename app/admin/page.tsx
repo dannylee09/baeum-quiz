@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 const cards = [
   { href: "/admin/quizzes", title: "퀴즈 목록", description: "과목별 퀴즈와 공개 상태 확인" },
   { href: "/admin/submissions", title: "제출 현황", description: "학생별 점수와 수학 검토 상태 확인" },
-  { href: "/admin/winners", title: "정답자 추첨", description: "실제 만점 제출 기록을 기준으로 과목별 추첨" },
+  { href: "/admin/winners", title: "정답자 추첨", description: "최근 답안 기준 만점자 중 학생당 1회 추첨" },
   { href: "/admin/stats", title: "참여 통계", description: "참여자 수와 퀴즈별 정답률 확인" },
 ];
 
@@ -15,7 +15,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
-      {source === "mock" && errorMessage ? (
+      {source === "error" && errorMessage ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {errorMessage}
         </div>
@@ -25,7 +25,7 @@ export default async function AdminDashboardPage() {
         <MetricCard label="퀴즈" value={`${stats.quizCount}개`} />
         <MetricCard label="제출" value={`${stats.submissionCount}건`} />
         <MetricCard label="참여 학생" value={`${stats.participantCount}명`} />
-        <MetricCard label="정답자" value={`${stats.perfectSubmissionCount}명`} />
+        <MetricCard label="추첨 대상 학생" value={`${stats.perfectSubmissionCount}명`} />
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">

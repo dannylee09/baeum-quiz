@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import Link from "next/link";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import type { GradedSubmission, Question } from "@/lib/types";
 import type { MockQuiz } from "@/lib/mock-data";
 
@@ -33,6 +34,10 @@ export default function QuizSubmissionForm({ quiz }: Props) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [retryMessage, setRetryMessage] = useState<string | null>(null);
   const [retryRequired, setRetryRequired] = useState(false);
+  const [retryToken, setRetryToken] = useState<string | undefined>();
+  const [confirmedResult, setConfirmedResult] = useState<StoredResult | null>(null);
+  const requestId = useRef<string | null>(null);
+  const submitLock = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const maxScore = useMemo(
@@ -68,6 +73,7 @@ export default function QuizSubmissionForm({ quiz }: Props) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitLock.current) return;
     const formData = new FormData(event.currentTarget);
     setSubmitError(null);
 
@@ -75,19 +81,23 @@ export default function QuizSubmissionForm({ quiz }: Props) {
       return;
     }
 
+    submitLock.current = true;
     setIsSubmitting(true);
 
     try {
+      requestId.current ??= crypto.randomUUID();
       const response = await fetch("/api/submissions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          requestId: requestId.current,
           quizSetId: quiz.id,
           studentNo: studentNo.trim(),
           studentName: studentName.trim(),
           isFinalAttempt: retryRequired,
+          retryToken,
           answers: quiz.questions.map((question) => ({
             questionId: question.id,
             rawAnswer: String(formData.get(question.id) ?? ""),
@@ -98,6 +108,7 @@ export default function QuizSubmissionForm({ quiz }: Props) {
       const data = (await response.json()) as {
         result?: StoredResult;
         needsRetry?: boolean;
+        retryToken?: string;
         message?: string;
         errorMessage?: string;
       };
@@ -108,6 +119,11 @@ export default function QuizSubmissionForm({ quiz }: Props) {
       }
 
       if (data.needsRetry) {
+        if (!data.retryToken) {
+          setSubmitError("재도전 정보를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+          return;
+        }
+        setRetryToken(data.retryToken);
         setRetryRequired(true);
         setRetryMessage(
           data.message ??
@@ -121,14 +137,29 @@ export default function QuizSubmissionForm({ quiz }: Props) {
         return;
       }
 
-      sessionStorage.setItem("baeum:last-result", JSON.stringify(data.result));
-      router.push(`/result/${data.result.submissionId}`);
+      setConfirmedResult(data.result);
+      try {
+        sessionStorage.setItem("baeum:last-result", JSON.stringify(data.result));
+        router.push(`/result/${data.result.submissionId}`);
+      } catch {
+        // The database save has succeeded even if private browsing blocks storage.
+      }
     } catch {
       setSubmitError("제출 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
     } finally {
+      submitLock.current = false;
       setIsSubmitting(false);
     }
   }
+
+  if (confirmedResult) return (
+    <section role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-6">
+      <h2 className="text-xl font-bold text-emerald-950">제출이 저장되었습니다.</h2>
+      <p className="mt-3 text-emerald-900">점수: {confirmedResult.totalScore} / {confirmedResult.maxScore}점</p>
+      <p className="mt-2 text-sm text-emerald-800">같은 퀴즈의 통계에는 마지막 제출이 반영됩니다.</p>
+      <Link href="/" className="mt-5 inline-block font-semibold underline">퀴즈 목록으로 돌아가기</Link>
+    </section>
+  );
 
   return (
     <form
@@ -144,6 +175,10 @@ export default function QuizSubmissionForm({ quiz }: Props) {
             <input
               required
               name="studentNo"
+              inputMode="numeric"
+              pattern="[1-3][0-9]{4}"
+              maxLength={5}
+              disabled={isSubmitting || retryRequired}
               value={studentNo}
               onChange={(event) => setStudentNo(event.target.value)}
               className={fieldClassName}
@@ -155,6 +190,8 @@ export default function QuizSubmissionForm({ quiz }: Props) {
             <input
               required
               name="studentName"
+              maxLength={40}
+              disabled={isSubmitting || retryRequired}
               value={studentName}
               onChange={(event) => setStudentName(event.target.value)}
               className={fieldClassName}
@@ -162,6 +199,7 @@ export default function QuizSubmissionForm({ quiz }: Props) {
             />
           </label>
         </div>
+        <p className="mt-4 text-xs leading-5 text-zinc-600">학번·이름·답안·점수·제출 시각은 참여 확인과 통계·추첨을 위해 운영자에게 저장됩니다. 본인의 학번과 이름을 입력해 주세요.</p>
       </section>
 
       <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm sm:p-5">
@@ -208,6 +246,7 @@ export default function QuizSubmissionForm({ quiz }: Props) {
                           >
                             <input
                               type="radio"
+                              disabled={isSubmitting}
                               name={question.id}
                               value={selectedChoice}
                               onChange={() => clearError(question.id)}
@@ -230,6 +269,8 @@ export default function QuizSubmissionForm({ quiz }: Props) {
                     </span>
                     <input
                       name={question.id}
+                      maxLength={256}
+                      disabled={isSubmitting}
                       onChange={() => clearError(question.id)}
                       className={fieldClassName}
                       placeholder="정수 또는 분수"

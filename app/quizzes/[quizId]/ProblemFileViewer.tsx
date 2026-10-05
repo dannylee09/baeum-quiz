@@ -166,6 +166,8 @@ function ProblemFile({
             : "min-h-[70svh] w-full overflow-visible bg-zinc-100"
         }
       >
+        {/* Keep the original problem image legible without an image proxy. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={fileUrl}
           alt={fileName ?? "문제 파일 이미지"}

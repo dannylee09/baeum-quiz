@@ -1,14 +1,10 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SubjectCode } from "@/lib/types";
-
-type UploadedQuestionFile = {
-  path: string;
-  mimeType: string;
-  originalName: string;
-};
+import { useQuestionFileUpload } from "@/lib/uploads/use-question-file-upload";
+import QuestionFileUpload from "./QuestionFileUpload";
 
 type ApiError = {
   errorStage?: string;
@@ -28,17 +24,13 @@ const subjectOptions: Array<{ value: SubjectCode; label: string }> = [
 const fieldClassName =
   "mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-950 outline-none placeholder:text-zinc-700 focus:border-zinc-900 disabled:text-zinc-950 disabled:opacity-100";
 
-const fileFieldClassName =
-  "mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base text-zinc-950 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-950 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white";
-
-const maxFileSize = 10 * 1024 * 1024;
-
 export default function AdminQuizCreateForm() {
   const router = useRouter();
   const [subjectCode, setSubjectCode] = useState<SubjectCode>("korean");
   const [questionCount, setQuestionCount] = useState(2);
   const [answers, setAnswers] = useState<string[]>(["", ""]);
-  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const upload = useQuestionFileUpload();
+  const submittingRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -52,7 +44,7 @@ export default function AdminQuizCreateForm() {
   );
 
   function updateQuestionCount(nextCount: number) {
-    const count = Math.min(Math.max(nextCount, 1), 50);
+    const count = Number.isFinite(nextCount) ? Math.min(Math.max(Math.trunc(nextCount), 1), 50) : 1;
     setQuestionCount(count);
     setAnswers((current) =>
       Array.from({ length: count }, (_, index) => current[index] ?? ""),
@@ -69,6 +61,8 @@ export default function AdminQuizCreateForm() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     const form = event.currentTarget;
     setMessage(null);
     setErrorMessage(null);
@@ -77,7 +71,7 @@ export default function AdminQuizCreateForm() {
     const formData = new FormData(form);
 
     try {
-      const uploadedFile = await uploadSelectedQuestionFile(formData.get("questionFile"));
+      const uploadedFile = await upload.ensureUploaded();
 
       const response = await fetch("/api/admin/quizzes", {
         method: "POST",
@@ -112,9 +106,10 @@ export default function AdminQuizCreateForm() {
       setMessage("퀴즈가 등록되었습니다.");
       setErrorMessage(null);
       form.reset();
-      setSelectedFileName(null);
+      upload.reset();
       setSubjectCode("korean");
-      updateQuestionCount(2);
+      setQuestionCount(2);
+      setAnswers(["", ""]);
 
       try {
         router.refresh();
@@ -126,6 +121,7 @@ export default function AdminQuizCreateForm() {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "등록 요청 오류가 발생했습니다.");
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   }
@@ -134,8 +130,7 @@ export default function AdminQuizCreateForm() {
     <section className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
       <h2 className="text-xl font-bold text-zinc-950">새 퀴즈 등록</h2>
       <p className="mt-1 text-sm text-zinc-600">
-        문제 파일은 PDF, PNG, JPG, WEBP 형식으로 10MB 이하만 업로드할 수 있습니다.
-        직접 링크나 Storage 경로를 입력해도 됩니다.
+        과목과 제목, 문제 파일, 문항별 정답을 입력해 주세요. 공개 여부는 나중에 바꿀 수 있습니다.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-5 space-y-5">
@@ -146,6 +141,7 @@ export default function AdminQuizCreateForm() {
               value={subjectCode}
               onChange={(event) => setSubjectCode(event.target.value as SubjectCode)}
               className={fieldClassName}
+              disabled={isSubmitting}
             >
               {subjectOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -161,6 +157,8 @@ export default function AdminQuizCreateForm() {
               type="number"
               min={1}
               max={50}
+              step={1}
+              disabled={isSubmitting}
               value={questionCount}
               onChange={(event) => updateQuestionCount(Number(event.target.value))}
               className={fieldClassName}
@@ -173,6 +171,8 @@ export default function AdminQuizCreateForm() {
           <input
             required
             name="title"
+            maxLength={200}
+            disabled={isSubmitting}
             className={fieldClassName}
             placeholder="예: 문학 작품의 표현 방식"
           />
@@ -182,46 +182,29 @@ export default function AdminQuizCreateForm() {
           <span className="text-sm font-medium text-zinc-700">설명</span>
           <textarea
             name="description"
+            maxLength={4000}
+            disabled={isSubmitting}
             rows={3}
             className={fieldClassName}
             placeholder="학생에게 보여줄 퀴즈 설명"
           />
         </label>
 
-        <label className="block">
-          <span className="text-sm font-medium text-zinc-700">문제 파일 업로드</span>
-          <input
-            name="questionFile"
-            type="file"
-            accept="application/pdf,image/png,image/jpeg,image/webp"
-            className={fileFieldClassName}
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              setSelectedFileName(file?.name ?? null);
-            }}
-          />
-          <span className="mt-2 block text-sm text-zinc-600">
-            {selectedFileName ? `선택한 파일: ${selectedFileName}` : "선택하지 않으면 파일 없이 등록됩니다."}
-          </span>
-        </label>
+        <QuestionFileUpload upload={upload} disabled={isSubmitting} />
 
-        <label className="block">
-          <span className="text-sm font-medium text-zinc-700">
-            문제 파일 링크 또는 저장 경로
-          </span>
-          <input
-            name="pdfStoragePath"
-            className={fieldClassName}
-            placeholder="예: https://... 또는 storage path"
-          />
-          <span className="mt-2 block text-sm text-zinc-600">
-            파일을 업로드하면 업로드된 파일 경로가 우선 저장됩니다.
-          </span>
-        </label>
+        <details className="rounded-md border border-zinc-200 p-3">
+          <summary className="cursor-pointer text-sm font-medium text-zinc-700">기존 문제 파일 링크 사용하기</summary>
+          <label className="mt-3 block">
+            <span className="text-sm text-zinc-700">문제 파일 링크 또는 저장 경로</span>
+            <input name="pdfStoragePath" maxLength={2000} disabled={isSubmitting} className={fieldClassName} placeholder="https://... 또는 기존 저장 경로" />
+            <span className="mt-2 block text-xs text-zinc-600">새 파일을 선택하면 업로드한 파일이 우선 저장됩니다.</span>
+          </label>
+        </details>
 
         <label className="flex items-center gap-2 text-sm font-medium text-zinc-700">
           <input
             name="published"
+            disabled={isSubmitting}
             type="checkbox"
             className="h-4 w-4 rounded border-zinc-300"
           />
@@ -241,6 +224,8 @@ export default function AdminQuizCreateForm() {
                 </span>
                 <input
                   required
+                  maxLength={100}
+                  disabled={isSubmitting}
                   value={answer}
                   onChange={(event) => updateAnswer(index, event.target.value)}
                   className={fieldClassName}
@@ -252,65 +237,31 @@ export default function AdminQuizCreateForm() {
         </div>
 
         {message ? (
-          <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+          <p role="status" className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
             {message}
           </p>
         ) : null}
 
         {errorMessage ? (
-          <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
             {errorMessage}
           </p>
         ) : null}
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || upload.status === "checking" || upload.status === "uploading"}
           className="rounded-md bg-zinc-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-400"
         >
-          {isSubmitting ? "등록 중..." : "퀴즈 등록"}
+          {isSubmitting ? (upload.status === "uploading" ? "문제 파일 업로드 중…" : "퀴즈 저장 중…") : "퀴즈 등록"}
         </button>
       </form>
     </section>
   );
 }
 
-async function uploadSelectedQuestionFile(value: FormDataEntryValue | null) {
-  if (!(value instanceof File) || value.size === 0) {
-    return null;
-  }
-
-  if (value.size > maxFileSize) {
-    throw new Error("파일 업로드 오류: 문제 파일은 10MB 이하만 업로드할 수 있습니다.");
-  }
-
-  const formData = new FormData();
-  formData.append("file", value);
-
-  const response = await fetch("/api/admin/quiz-files", {
-    method: "POST",
-    body: formData,
-  });
-  const data = (await response.json()) as UploadedQuestionFile & ApiError;
-
-  if (!response.ok || !data.path) {
-    throw new Error(formatSubmitError(data, "파일 업로드 오류"));
-  }
-
-  return {
-    path: data.path,
-    mimeType: data.mimeType,
-    originalName: data.originalName,
-  };
-}
-
 function formatSubmitError(data: ApiError, fallbackStage = "등록 오류") {
   const stage = data.errorStage ?? fallbackStage;
   const message = data.errorMessage ?? "서버가 오류 원인을 반환하지 않았습니다.";
-  const detail =
-    data.error?.name || data.error?.message
-      ? ` (${data.error.name ?? "Error"}: ${data.error.message ?? "Unknown error"})`
-      : "";
-
-  return `${stage}: ${message}${detail}`;
+  return `${stage}: ${message}`;
 }
