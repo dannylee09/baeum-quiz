@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { AdminQuizEditData } from "@/lib/supabase/admin-queries";
 import { useQuestionFileUpload } from "@/lib/uploads/use-question-file-upload";
 import QuestionFileUpload from "../../QuestionFileUpload";
+import ProblemFileViewer from "@/app/quizzes/[quizId]/ProblemFileViewer";
 
 type Props = {
   quiz: AdminQuizEditData;
@@ -137,7 +138,19 @@ export default function AdminQuizEditForm({ quiz }: Props) {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-5 space-y-5">
+      <form onSubmit={handleSubmit} className="mt-5 grid items-start gap-6 lg:grid-cols-2">
+        <aside aria-label="등록된 문제 미리보기" className="min-w-0 space-y-3 lg:sticky lg:top-6">
+          <h3 className="text-base font-semibold text-zinc-950">등록된 문제</h3>
+          <p className="text-sm text-zinc-600">현재 저장된 문제를 보면서 수정할 수 있습니다. 새 파일은 수정 저장 후 반영됩니다.</p>
+          <ProblemFileViewer
+            key={quiz.questionFileUrl}
+            fileName={quiz.questionFileOriginalName}
+            filePath={quiz.questionFilePath}
+            fileUrl={quiz.questionFileUrl}
+            mimeType={quiz.questionFileMimeType}
+          />
+        </aside>
+        <div className="min-w-0 space-y-5">
         <label className="block">
           <span className="text-sm font-medium text-zinc-700">제목</span>
           <input
@@ -246,6 +259,7 @@ export default function AdminQuizEditForm({ quiz }: Props) {
           >
             목록으로
           </button>
+        </div>
         </div>
       </form>
     </section>

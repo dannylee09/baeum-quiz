@@ -91,6 +91,7 @@ export type AdminQuizEditData = {
   description: string;
   pdfStoragePath: string | null;
   questionFilePath: string | null;
+  questionFileUrl: string | null;
   questionFileMimeType: string | null;
   questionFileOriginalName: string | null;
   published: boolean;
@@ -240,6 +241,10 @@ export async function getAdminQuizForEdit(
     }
 
     const quiz = quizData as QuizEditRow;
+    const questionFilePath = quiz.question_file_path ?? quiz.pdf_storage_path;
+    const questionFileUrl = !questionFilePath ? null
+      : /^https?:\/\//i.test(questionFilePath) ? questionFilePath
+      : supabase.storage.from("quiz-files").getPublicUrl(questionFilePath).data.publicUrl;
 
     return {
       id: quiz.id,
@@ -248,7 +253,8 @@ export async function getAdminQuizForEdit(
       title: quiz.title,
       description: quiz.description ?? "",
       pdfStoragePath: quiz.pdf_storage_path,
-      questionFilePath: quiz.question_file_path ?? quiz.pdf_storage_path,
+      questionFilePath,
+      questionFileUrl,
       questionFileMimeType: quiz.question_file_mime_type,
       questionFileOriginalName: quiz.question_file_original_name,
       published: quiz.published,
