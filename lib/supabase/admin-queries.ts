@@ -1,7 +1,9 @@
 import "server-only";
 
 import type { AnswerType, SubjectCode } from "@/lib/types";
-import { mockQuizzes, mockSubmissions, type MockSubmission } from "@/lib/mock-data";
+import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { readAllRows } from "@/lib/supabase/read-all";
+import { buildSubmissionStats } from "@/lib/admin/submission-stats";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export type AdminSubmissionAnswer = {
@@ -33,7 +35,7 @@ export type AdminSubmission = {
 };
 
 export type AdminDataResult = {
-  source: "supabase" | "mock";
+  source: "supabase" | "error";
   submissions: AdminSubmission[];
   errorMessage?: string;
 };
@@ -46,7 +48,7 @@ export type AdminDashboardStats = {
 };
 
 export type AdminDashboardResult = {
-  source: "supabase" | "mock";
+  source: "supabase" | "error";
   stats: AdminDashboardStats;
   errorMessage?: string;
 };
@@ -68,7 +70,7 @@ export type AdminQuizListItem = {
 };
 
 export type AdminQuizListResult = {
-  source: "supabase" | "mock";
+  source: "supabase" | "error";
   quizzes: AdminQuizListItem[];
   errorMessage?: string;
 };
@@ -120,6 +122,7 @@ type SubmissionRow = {
   student_name: string;
   total_score: number;
   final_score: number;
+  max_score: number | null;
   created_at: string;
 };
 
@@ -134,17 +137,6 @@ type SubmissionAnswerRow = {
   final_is_correct: boolean;
   final_score: number;
   review_status: string;
-};
-
-type DashboardQuestionRow = {
-  quiz_set_id: string;
-  points: number;
-};
-
-type DashboardSubmissionRow = {
-  quiz_set_id: string;
-  student_no: string;
-  final_score: number;
 };
 
 type QuizListRow = QuizRow & {
@@ -166,191 +158,63 @@ const subjectNames: Record<SubjectCode, string> = {
 };
 
 export async function getAdminDashboardData(): Promise<AdminDashboardResult> {
+  const empty = { quizCount: 0, submissionCount: 0, participantCount: 0, perfectSubmissionCount: 0 };
+  if (!(await isAdminAuthenticated())) return { source: "error", stats: empty, errorMessage: "관리자 인증이 필요합니다." };
   try {
-    const supabase = createAdminSupabaseClient();
-    const [quizResult, questionResult, submissionResult] = await Promise.all([
-      supabase.from("quiz_sets").select("*", { count: "exact", head: true }),
-      supabase.from("questions").select("quiz_set_id, points"),
-      supabase
-        .from("submissions")
-        .select("quiz_set_id, student_no, final_score"),
-    ]);
-
-    if (quizResult.error) {
-      throw new Error(quizResult.error.message);
-    }
-
-    if (questionResult.error) {
-      throw new Error(questionResult.error.message);
-    }
-
-    if (submissionResult.error) {
-      throw new Error(submissionResult.error.message);
-    }
-
-    return {
-      source: "supabase",
-      stats: buildDashboardStats(
-        quizResult.count ?? 0,
-        (questionResult.data ?? []) as DashboardQuestionRow[],
-        (submissionResult.data ?? []) as DashboardSubmissionRow[],
-      ),
-    };
+    const [result, quizzes] = await Promise.all([getAdminSubmissionData(), getAdminQuizList()]);
+    if (result.source !== "supabase" || quizzes.source !== "supabase") throw new Error("Unavailable");
+    const stats = buildSubmissionStats(result.submissions);
+    return { source: "supabase", stats: { quizCount: quizzes.quizzes.length, submissionCount: stats.rawCount, participantCount: stats.participantCount, perfectSubmissionCount: stats.eligibleStudentCount } };
   } catch {
-    return {
-      source: "mock",
-      stats: {
-        quizCount: mockQuizzes.length,
-        submissionCount: mockSubmissions.length,
-        participantCount: new Set(
-          mockSubmissions.map((submission) => submission.studentNo),
-        ).size,
-        perfectSubmissionCount: mockSubmissions.filter(
-          (submission) =>
-            submission.maxScore > 0 &&
-            submission.finalScore === submission.maxScore,
-        ).length,
-      },
-      errorMessage:
-        "Supabase에서 대시보드 통계를 읽지 못해 임시 데이터로 표시합니다.",
-    };
+    return { source: "error", stats: empty, errorMessage: "통계를 불러오지 못했습니다. 잠시 후 새로고침해 주세요." };
   }
 }
 
 export async function getAdminSubmissionData(): Promise<AdminDataResult> {
+  if (!(await isAdminAuthenticated())) return { source: "error", submissions: [], errorMessage: "관리자 인증이 필요합니다." };
   try {
-    const supabase = createAdminSupabaseClient();
-    const [quizResult, questionResult, submissionResult, answerResult] =
-      await Promise.all([
-        supabase.from("quiz_sets").select("id, subject_code, title"),
-        supabase
-          .from("questions")
-          .select("id, quiz_set_id, question_no, points")
-          .order("question_no", { ascending: true }),
-        supabase
-          .from("submissions")
-          .select("id, quiz_set_id, student_no, student_name, total_score, final_score, created_at")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("submission_answers")
-          .select(
-            "id, submission_id, question_id, raw_answer, normalized_answer, is_correct, score, final_is_correct, final_score, review_status",
-          ),
-      ]);
-
-    if (quizResult.error) {
-      throw new Error(quizResult.error.message);
-    }
-
-    if (questionResult.error) {
-      throw new Error(questionResult.error.message);
-    }
-
-    if (submissionResult.error) {
-      throw new Error(submissionResult.error.message);
-    }
-
-    if (answerResult.error) {
-      throw new Error(answerResult.error.message);
-    }
-
-    return {
-      source: "supabase",
-      submissions: mapRowsToSubmissions(
-        (quizResult.data ?? []) as QuizRow[],
-        (questionResult.data ?? []) as QuestionRow[],
-        (submissionResult.data ?? []) as SubmissionRow[],
-        (answerResult.data ?? []) as SubmissionAnswerRow[],
-      ),
-    };
+    const client = createAdminSupabaseClient();
+    const cutoff = new Date().toISOString();
+    const [quizzes, questions, submissions, answers] = await Promise.all([
+      readAllRows<QuizRow>(client, "quiz_sets", "id, subject_code, title", cutoff),
+      readAllRows<QuestionRow>(client, "questions", "id, quiz_set_id, question_no, points", cutoff),
+      readAllRows<SubmissionRow>(client, "submissions", "id, quiz_set_id, student_no, student_name, total_score, final_score, max_score, created_at", cutoff),
+      readAllRows<SubmissionAnswerRow>(client, "submission_answers", "id, submission_id, question_id, raw_answer, normalized_answer, is_correct, score, final_is_correct, final_score, review_status", cutoff),
+    ]);
+    return { source: "supabase", submissions: mapRowsToSubmissions(quizzes, questions, submissions, answers).sort((a,b) => b.submittedAt.localeCompare(a.submittedAt) || b.id.localeCompare(a.id)) };
   } catch {
-    return {
-      source: "mock",
-      submissions: mockSubmissions.map(mapMockSubmission),
-      errorMessage: "DB 조회 실패로 임시 제출 데이터를 표시 중입니다.",
-    };
+    return { source: "error", submissions: [], errorMessage: "제출 기록을 불러오지 못했습니다. 잠시 후 새로고침해 주세요." };
   }
 }
 
 export async function getAdminQuizList(): Promise<AdminQuizListResult> {
+  if (!(await isAdminAuthenticated())) return { source: "error", quizzes: [], errorMessage: "관리자 인증이 필요합니다." };
   try {
-    const supabase = createAdminSupabaseClient();
-    const [quizResult, questionResult, submissionResult] = await Promise.all([
-      supabase
-        .from("quiz_sets")
-        .select(
-          "id, subject_code, title, description, pdf_storage_path, question_file_path, question_file_mime_type, question_file_original_name, published, created_at",
-        )
-        .order("created_at", { ascending: false }),
-      supabase.from("questions").select("quiz_set_id"),
-      supabase.from("submissions").select("quiz_set_id"),
+    const client = createAdminSupabaseClient();
+    const cutoff = new Date().toISOString();
+    const [quizzes, questions, submissions] = await Promise.all([
+      readAllRows<QuizListRow>(client, "quiz_sets", "id, subject_code, title, description, pdf_storage_path, question_file_path, question_file_mime_type, question_file_original_name, published, created_at", cutoff),
+      readAllRows<{ id: string; quiz_set_id: string }>(client, "questions", "id, quiz_set_id", cutoff),
+      readAllRows<{ id: string; quiz_set_id: string }>(client, "submissions", "id, quiz_set_id", cutoff),
     ]);
-
-    if (quizResult.error) {
-      throw new Error(quizResult.error.message);
-    }
-
-    if (questionResult.error) {
-      throw new Error(questionResult.error.message);
-    }
-
-    if (submissionResult.error) {
-      throw new Error(submissionResult.error.message);
-    }
-
-    const questionCounts = countByQuizId(
-      (questionResult.data ?? []) as Array<{ quiz_set_id: string }>,
-    );
-    const submissionCounts = countByQuizId(
-      (submissionResult.data ?? []) as Array<{ quiz_set_id: string }>,
-    );
-
-    return {
-      source: "supabase",
-      quizzes: ((quizResult.data ?? []) as QuizListRow[]).map((quiz) => ({
-        id: quiz.id,
-        subjectCode: quiz.subject_code,
-        subjectName: subjectNames[quiz.subject_code],
-        title: quiz.title,
-        description: quiz.description ?? "",
-        pdfStoragePath: quiz.pdf_storage_path,
-        questionFilePath: quiz.question_file_path ?? quiz.pdf_storage_path,
-        questionFileMimeType: quiz.question_file_mime_type,
-        questionFileOriginalName: quiz.question_file_original_name,
-        published: quiz.published,
-        questionCount: questionCounts.get(quiz.id) ?? 0,
-        submissionCount: submissionCounts.get(quiz.id) ?? 0,
-        createdAt: quiz.created_at,
-      })),
-    };
+    const questionCounts = countByQuizId(questions);
+    const submissionCounts = countByQuizId(submissions);
+    return { source: "supabase", quizzes: quizzes.sort((a,b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id)).map(quiz => ({
+      id: quiz.id, subjectCode: quiz.subject_code, subjectName: subjectNames[quiz.subject_code], title: quiz.title,
+      description: quiz.description ?? "", pdfStoragePath: quiz.pdf_storage_path,
+      questionFilePath: quiz.question_file_path ?? quiz.pdf_storage_path, questionFileMimeType: quiz.question_file_mime_type,
+      questionFileOriginalName: quiz.question_file_original_name, published: quiz.published,
+      questionCount: questionCounts.get(quiz.id) ?? 0, submissionCount: submissionCounts.get(quiz.id) ?? 0, createdAt: quiz.created_at,
+    })) };
   } catch {
-    return {
-      source: "mock",
-      quizzes: mockQuizzes.map((quiz) => ({
-        id: quiz.id,
-        subjectCode: quiz.subjectCode,
-        subjectName: quiz.subjectName,
-        title: quiz.title,
-        description: quiz.description,
-        pdfStoragePath: quiz.pdfStoragePath,
-        questionFilePath: quiz.questionFilePath ?? quiz.pdfStoragePath,
-        questionFileMimeType: quiz.questionFileMimeType ?? null,
-        questionFileOriginalName: quiz.questionFileOriginalName ?? null,
-        published: quiz.published,
-        questionCount: quiz.questions.length,
-        submissionCount: mockSubmissions.filter(
-          (submission) => submission.quizSetId === quiz.id,
-        ).length,
-        createdAt: quiz.createdAt,
-      })),
-      errorMessage: "DB 조회 실패로 임시 퀴즈 목록을 표시 중입니다.",
-    };
+    return { source: "error", quizzes: [], errorMessage: "퀴즈 목록을 불러오지 못했습니다. 잠시 후 새로고침해 주세요." };
   }
 }
 
 export async function getAdminQuizForEdit(
   quizId: string,
 ): Promise<AdminQuizEditData | null> {
+  if (!(await isAdminAuthenticated())) return null;
   try {
     const supabase = createAdminSupabaseClient();
     const { data: quizData, error: quizError } = await supabase
@@ -439,7 +303,7 @@ function mapRowsToSubmissions(
       studentName: submission.student_name,
       totalScore: submission.total_score,
       finalScore: submission.final_score,
-      maxScore: maxScoreByQuizId.get(submission.quiz_set_id) ?? 0,
+      maxScore: submission.max_score ?? maxScoreByQuizId.get(submission.quiz_set_id) ?? 0,
       submittedAt: submission.created_at,
       answers: (answersBySubmissionId.get(submission.id) ?? [])
         .map((answer) => {
@@ -463,34 +327,6 @@ function mapRowsToSubmissions(
   });
 }
 
-function mapMockSubmission(submission: MockSubmission): AdminSubmission {
-  return {
-    id: submission.id,
-    quizSetId: submission.quizSetId,
-    quizTitle: submission.quizTitle,
-    subjectCode: submission.subjectCode,
-    subjectName: submission.subjectName,
-    studentNo: submission.studentNo,
-    studentName: submission.studentName,
-    totalScore: submission.totalScore,
-    finalScore: submission.finalScore,
-    maxScore: submission.maxScore,
-    submittedAt: submission.submittedAt,
-    answers: submission.answers.map((answer) => ({
-      id: answer.questionId,
-      questionId: answer.questionId,
-      questionNo: answer.questionNo,
-      rawAnswer: answer.rawAnswer,
-      normalizedAnswer: answer.normalizedAnswer,
-      isCorrect: answer.isCorrect,
-      finalIsCorrect: answer.finalIsCorrect,
-      score: answer.score,
-      finalScore: answer.finalScore,
-      reviewStatus: answer.reviewStatus,
-    })),
-  };
-}
-
 function countByQuizId(rows: Array<{ quiz_set_id: string }>) {
   const counts = new Map<string, number>();
 
@@ -499,32 +335,4 @@ function countByQuizId(rows: Array<{ quiz_set_id: string }>) {
   }
 
   return counts;
-}
-
-function buildDashboardStats(
-  quizCount: number,
-  questions: DashboardQuestionRow[],
-  submissions: DashboardSubmissionRow[],
-): AdminDashboardStats {
-  const maxScoreByQuizId = new Map<string, number>();
-
-  for (const question of questions) {
-    maxScoreByQuizId.set(
-      question.quiz_set_id,
-      (maxScoreByQuizId.get(question.quiz_set_id) ?? 0) + question.points,
-    );
-  }
-
-  return {
-    quizCount,
-    submissionCount: submissions.length,
-    participantCount: new Set(
-      submissions.map((submission) => submission.student_no),
-    ).size,
-    perfectSubmissionCount: submissions.filter((submission) => {
-      const maxScore = maxScoreByQuizId.get(submission.quiz_set_id) ?? 0;
-
-      return maxScore > 0 && submission.final_score === maxScore;
-    }).length,
-  };
 }

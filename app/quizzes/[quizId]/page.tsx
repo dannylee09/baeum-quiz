@@ -24,6 +24,8 @@ export default async function QuizDetailPage({ params }: Props) {
     return <UnavailableQuizPage message="아직 공개되지 않은 퀴즈입니다." />;
   }
 
+  if (source === "error") return <UnavailableQuizPage message={errorMessage ?? "퀴즈를 불러오지 못했습니다."} />;
+
   if (!quiz) {
     notFound();
   }
@@ -39,12 +41,6 @@ export default async function QuizDetailPage({ params }: Props) {
         <Link href="/" className="text-sm font-medium text-zinc-600 hover:text-zinc-950">
           ← 퀴즈 목록으로
         </Link>
-
-        {source === "mock" && errorMessage ? (
-          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            {errorMessage}
-          </div>
-        ) : null}
 
         <div className="mt-4 grid gap-5 sm:mt-5 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,430px)] xl:items-start">
           <section className="-mx-3 w-[calc(100%+1.5rem)] max-w-none overflow-hidden border-y border-zinc-200 bg-white shadow-sm sm:mx-0 sm:w-auto sm:rounded-lg sm:border">

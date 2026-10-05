@@ -35,7 +35,7 @@ export default async function Home() {
             </p>
           </div>
 
-          {source === "mock" && errorMessage ? (
+          {source === "error" && errorMessage ? (
             <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               {errorMessage}
             </div>
@@ -71,7 +71,7 @@ export default async function Home() {
             ))}
           </div>
 
-          {quizzes.length === 0 ? (
+          {quizzes.length === 0 && source === "supabase" ? (
             <div className="mt-4 rounded-lg border border-zinc-200 bg-white p-6 text-center text-sm text-zinc-600">
               현재 공개된 퀴즈가 없습니다.
             </div>

@@ -1,87 +1,57 @@
 # 배움나눔 퀴즈
 
-학교 배움나눔활동용 국어·영어·수학 퀴즈 플랫폼입니다. 현재 학생용 화면과 관리자 화면은 mock data 기반으로 동작합니다.
+학교 국어·영어·수학 퀴즈 사이트입니다. 학생 제출, 관리자 통계와 추첨은 Supabase 실제 데이터로 동작합니다. 연결에 실패하면 오류를 표시하며 예시 데이터를 실제 기록으로 보여 주지 않습니다.
 
-## 개발 서버
+## 운영 규칙
 
-```bash
+- 첫 제출이 오답이면 답안을 유지하고 한 번 더 제출하도록 안내합니다. 재도전은 동일한 학생·퀴즈·요청에만 허용되며 30분 안에 완료해야 합니다.
+- 통계의 점수와 정답률은 **학생별·퀴즈별 최신 제출** 기준입니다. 전체 제출 수에는 모든 저장된 제출을 포함합니다.
+- 추첨 후보는 최신 제출 중 만점 퀴즈가 하나 이상 있는 학생입니다. 여러 과목에서 만점이어도 학번당 후보 하나이며, 한 추첨 안에서 중복 당첨되지 않습니다.
+- 추첨 결과는 저장 후 표시합니다. 같은 요청을 다시 보내면 기존 결과를 반환합니다. 새 추첨은 별도 회차이므로 이전 회차 당첨자가 다시 포함될 수 있습니다. 상품 여러 개는 한 번에 필요한 인원을 추첨하세요.
+- 제출이 있는 퀴즈의 정답·배점·문항과 삭제는 잠깁니다. 설명·문제 파일·공개 여부는 수정할 수 있습니다.
+- 학번과 이름은 학생이 직접 입력합니다. 이 방식만으로 타인의 학번 사용을 확인할 수는 없습니다.
+
+## 문제 파일 등록
+
+관리자 화면에서 파일을 끌어 놓거나 선택한 뒤 미리보기를 확인하고 정답과 함께 저장합니다. PDF·PNG·JPG/JPEG·WEBP 한 개, 최대 **4MiB (4,194,304바이트)**를 지원합니다. 여러 페이지는 PDF 하나로 합치세요. HWP/HWPX와 Word는 PDF로 저장한 뒤 올립니다.
+
+업로드 진행률, 취소, 실패 후 재시도를 지원합니다. 서버도 크기·확장자·MIME·파일 구조를 확인하고 임의 경로를 생성합니다. 파일 검증은 백신 검사와 같지는 않습니다. `quiz-files`는 학생용 공개 문제 파일 전용이며 개인정보 파일은 넣지 마세요.
+
+## 환경변수와 개발
+
+`.env.local` 또는 Vercel 환경변수에 다음을 설정합니다. 비밀값을 저장소에 커밋하지 마세요.
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` 또는 `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SECRET_KEY` 또는 `SUPABASE_SERVICE_ROLE_KEY` (서버 전용)
+- `ADMIN_PASSWORD`
+- `ADMIN_SESSION_SECRET` (선택; 미설정 시 서버 전용 Supabase 키에서 서명 키를 유도)
+
+```sh
+npm ci
 npm run dev
 ```
 
-브라우저에서 `http://localhost:3000`을 엽니다.
+관리자 세션은 최대 8시간이며 비밀번호나 서명 키가 바뀌면 이전 세션은 무효화됩니다. `/api/health/supabase`도 관리자 인증이 필요합니다.
 
-## 테스트
+## 검증
 
-```bash
+```sh
 npm test
+npm run lint
+npm run build
+npx tsc --noEmit
+npm audit --omit=dev
 ```
 
-## Supabase 설정
+`tests/database-contract.sql`은 테스트용 데이터를 트랜잭션 안에서 만들고 롤백합니다. 제출 원자성·중복 요청·퀴즈 잠금·요청 제한·권한을 검사합니다. 실제 학생 기록이나 추첨 결과를 만들지 않습니다.
 
-1. `.env.local.example`을 참고해 실제 연결용 `.env.local`을 따로 만듭니다.
-2. 필요한 환경변수는 다음과 같습니다.
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` 또는 `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SECRET_KEY` 또는 `SUPABASE_SERVICE_ROLE_KEY`
-3. secret/service role key는 서버와 스크립트 전용입니다. 브라우저 컴포넌트나 API 응답에 노출하지 않습니다.
-4. 초기 DB 스키마는 `supabase/migrations/001_initial_schema.sql`에 정리되어 있습니다.
+## 기존 서비스 배포 순서
 
-Supabase client 파일은 용도별로 분리되어 있습니다.
+1. `20261005073750_operations_hardening.sql`을 먼저 적용합니다. 기존 제출의 만점 기준을 보존하고 서버 전용 저장 함수·요청 제한·추첨 기록을 추가합니다.
+2. 새 코드를 배포하고 공개 퀴즈와 관리자 화면을 확인합니다.
+3. `20261005075627_restrict_public_answer_access.sql`을 적용합니다. 공개 문항 메타데이터만 읽도록 제한하고 정답 및 학생 제출 직접 접근을 차단합니다. 이전 코드는 정답 컬럼을 조회하므로 순서를 지켜야 합니다.
 
-- `lib/supabase/client.ts`: 브라우저용 publishable/anon client
-- `lib/supabase/server.ts`: 서버/API route용 publishable/anon client
-- `lib/supabase/admin.ts`: secret/service role 기반 관리자 client, 서버 전용
+위 두 마이그레이션 적용 후 이전 코드로 단순 되돌리면 공개 조회가 실패할 수 있습니다. 문제 발생 시 공개 조회에서 정답 컬럼을 제외한 버전으로 복구하세요. 운영 DB를 초기화하거나 개발용 seed를 실행하지 마세요.
 
-## Supabase 연결 확인
-
-개발 서버를 실행한 뒤 아래 주소를 엽니다.
-
-```txt
-http://localhost:3000/api/health/supabase
-```
-
-이 API는 연결 성공 여부와 `quiz_sets` 테이블 조회 가능 여부만 반환합니다. 환경변수 값이나 key 값은 응답에 포함하지 않습니다.
-
-## 개발용 퀴즈 seed
-
-`lib/mock-data.ts`의 국어·영어·수학 mock 퀴즈를 Supabase `quiz_sets`, `questions` 테이블에 넣습니다. 같은 과목과 같은 제목의 퀴즈가 있으면 중복 삽입하지 않고, 문항도 이미 있는 번호는 건너뜁니다.
-
-```bash
-npm run seed:dev-quizzes
-```
-
-## 문제 파일 Storage 설정
-
-관리자 퀴즈 등록/수정 화면에서 PDF, PNG, JPG/JPEG, WEBP 문제 파일을 업로드하려면 Supabase Storage에 bucket을 먼저 만들어야 합니다.
-
-1. Supabase Dashboard에서 Storage로 이동합니다.
-2. `quiz-files` 이름의 bucket을 만듭니다.
-3. 학생 화면에서 파일을 바로 미리보기하려면 public bucket으로 설정합니다.
-4. 파일 크기는 애플리케이션에서 10MB 이하로 제한합니다.
-5. 기존 DB가 이미 만들어져 있다면 `supabase/migrations/002_question_file_fields.sql`을 적용해 `question_file_path`, `question_file_mime_type`, `question_file_original_name` 컬럼을 추가합니다.
-
-기존 `pdf_storage_path` 값은 호환을 위해 유지하며, 새 문제 파일 경로는 `question_file_path`를 우선 사용합니다.
-
-로컬 스크립트로 위 설정을 처리하려면 `.env.local`에 Supabase 연결 값과 서버 전용 key를 넣고 실행합니다. SQL migration 적용까지 자동으로 하려면 Supabase Management API용 `SUPABASE_ACCESS_TOKEN`도 필요합니다. 이 값들은 로그에 출력하지 않습니다.
-
-```bash
-npm run setup:supabase-files
-```
-
-## 관리자 비밀번호 설정
-
-배포 전 `.env.local` 또는 배포 환경변수에 `ADMIN_PASSWORD`를 설정합니다.
-
-```txt
-ADMIN_PASSWORD=your-admin-password
-```
-
-`/admin` 하위 페이지는 이 비밀번호로 로그인해야 사용할 수 있습니다. `ADMIN_PASSWORD`가 없으면 관리자 페이지는 차단되고 설정 안내만 표시됩니다. 비밀번호 값은 클라이언트 코드와 API 응답에 포함하지 않습니다.
-
-스크립트가 처리하는 작업:
-
-- `supabase/migrations/002_question_file_fields.sql`이 이미 적용됐는지 확인하고, 필요할 때만 적용합니다.
-- `quiz-files` Storage bucket이 없으면 public bucket으로 생성합니다.
-- bucket이 이미 있으면 public, MIME 타입, 10MB 제한 설정을 확인/갱신합니다.
-
-학생 제출 데이터는 아직 seed하지 않습니다. 학생 제출 화면과 관리자 화면도 아직 Supabase 데이터로 전환하지 않았습니다.
+기존 설치용 파일은 `001_initial_schema.sql`, `002_question_file_fields.sql`에 있습니다. `setup:supabase-files` 스크립트의 버킷 제한은 10MiB이지만 웹 업로드는 Vercel 요청 제한에 맞춰 4MiB로 제한합니다.

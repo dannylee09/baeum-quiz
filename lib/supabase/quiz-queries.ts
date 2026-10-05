@@ -1,10 +1,10 @@
 import "server-only";
 
 import type { AnswerType, Question, SubjectCode } from "@/lib/types";
-import { getMockQuiz, mockQuizzes, type MockQuiz } from "@/lib/mock-data";
+import { type MockQuiz } from "@/lib/mock-data";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-type DataSource = "supabase" | "mock";
+type DataSource = "supabase" | "error";
 
 type QuizQueryResult = {
   source: DataSource;
@@ -40,7 +40,6 @@ type QuestionRow = {
   quiz_set_id: string;
   question_no: number;
   answer_type: AnswerType;
-  correct_answer: string;
   points: number;
 };
 
@@ -77,9 +76,9 @@ export async function getPublishedQuizSets(): Promise<QuizQueryResult> {
     };
   } catch {
     return {
-      source: "mock",
-      quizzes: mockQuizzes.filter((quiz) => quiz.published),
-      errorMessage: "DB 조회 실패로 임시 퀴즈 목록을 표시 중입니다.",
+      source: "error",
+      quizzes: [],
+      errorMessage: "퀴즈 목록을 불러오지 못했습니다. 잠시 후 새로고침해 주세요.",
     };
   }
 }
@@ -118,7 +117,7 @@ export async function getPublishedQuizWithQuestions(
 
     const { data: questionData, error: questionError } = await supabase
       .from("questions")
-      .select("id, quiz_set_id, question_no, answer_type, correct_answer, points")
+      .select("id, quiz_set_id, question_no, answer_type, points")
       .eq("quiz_set_id", quizId)
       .order("question_no", { ascending: true });
 
@@ -131,15 +130,7 @@ export async function getPublishedQuizWithQuestions(
       quiz: mapQuizSetRowToQuiz(quizRow, mapQuestionRows(questionData ?? [])),
     };
   } catch {
-    const fallback = getMockQuiz(quizId);
-
-    return {
-      source: "mock",
-      quiz: fallback ?? null,
-      errorMessage: fallback
-        ? "DB 조회 실패로 임시 퀴즈 정보를 표시 중입니다."
-        : "DB에서 퀴즈 상세 정보를 읽지 못했습니다.",
-    };
+    return { source: "error", quiz: null, errorMessage: "퀴즈를 불러오지 못했습니다. 잠시 후 새로고침해 주세요." };
   }
 }
 
@@ -198,7 +189,7 @@ function mapQuestionRows(rows: QuestionRow[]): Question[] {
     quizSetId: question.quiz_set_id,
     questionNo: question.question_no,
     answerType: question.answer_type,
-    correctAnswer: question.correct_answer,
+    correctAnswer: "",
     points: question.points,
   }));
 }

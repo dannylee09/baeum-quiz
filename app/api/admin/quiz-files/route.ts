@@ -1,120 +1,52 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { validateMutationRequest } from "@/lib/request-security";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
-
-const bucketName = "quiz-files";
-const maxFileSize = 10 * 1024 * 1024;
-const allowedMimeTypes = new Map([
-  ["application/pdf", "pdf"],
-  ["image/png", "png"],
-  ["image/jpeg", "jpg"],
-  ["image/webp", "webp"],
-]);
+import { readUploadFormData, UploadRequestError } from "@/lib/uploads/read-upload";
+import { safeOriginalFileName, validateQuestionFileContent } from "@/lib/uploads/validation";
 
 export async function POST(request: Request) {
+  const blocked = validateMutationRequest(request);
+  if (blocked) return blocked;
   if (!(await isAdminAuthenticated())) {
-    return unauthorizedResponse();
+    return errorResponse("관리자 인증이 필요합니다. 다시 로그인해 주세요.", 401);
   }
-
-  let formData: FormData;
-
   try {
-    formData = await request.formData();
-  } catch (error) {
-    return errorResponse("파일 업로드 오류", "업로드 데이터를 읽을 수 없습니다.", error, 400);
-  }
-
-  const file = formData.get("file");
-
-  if (!(file instanceof File)) {
-    return errorResponse("파일 업로드 오류", "업로드할 문제 파일을 선택해 주세요.", null, 400);
-  }
-
-  if (file.size > maxFileSize) {
-    return errorResponse("파일 업로드 오류", "문제 파일은 10MB 이하만 업로드할 수 있습니다.", null, 400);
-  }
-
-  const extension = allowedMimeTypes.get(file.type);
-
-  if (!extension) {
-    return errorResponse("파일 업로드 오류", "PDF, PNG, JPG, WEBP 파일만 업로드할 수 있습니다.", null, 400);
-  }
-
-  const safeName = sanitizeFileName(file.name);
-  const storagePath = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}-${safeName || `question.${extension}`}`;
-
-  try {
+    const formData = await readUploadFormData(request);
+    const entries = [...formData.entries()];
+    const file = formData.get("file");
+    if (entries.length !== 1 || !(file instanceof File)) {
+      return errorResponse("문제 파일 하나를 선택해 주세요.", 400);
+    }
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const validated = validateQuestionFileContent(file, bytes);
+    if (!validated.ok) return errorResponse(validated.error, 400);
+    // Use only server-generated identifiers and a content-verified extension.
+    const storagePath = `${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${validated.extension}`;
     const supabase = createAdminSupabaseClient();
-    const { error } = await supabase.storage.from(bucketName).upload(storagePath, file, {
-      contentType: file.type,
+    const { error } = await supabase.storage.from("quiz-files").upload(storagePath, bytes, {
+      contentType: validated.mimeType,
       upsert: false,
     });
-
     if (error) {
-      return errorResponse("파일 업로드 오류", "문제 파일을 Storage에 업로드하지 못했습니다.", error, 500);
+      console.error("Question file storage upload failed", { name: error.name });
+      return errorResponse("문제 파일을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.", 503);
     }
-
     return NextResponse.json({
       path: storagePath,
-      mimeType: file.type,
-      originalName: file.name,
-    });
+      mimeType: validated.mimeType,
+      originalName: safeOriginalFileName(file.name),
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    return errorResponse("파일 업로드 오류", "문제 파일 업로드 중 오류가 발생했습니다.", error, 500);
+    if (error instanceof UploadRequestError) return errorResponse(error.message, error.status);
+    console.error("Question file upload failed", { name: error instanceof Error ? error.name : "Error" });
+    return errorResponse("파일 업로드 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.", 500);
   }
 }
 
-function unauthorizedResponse() {
-  return NextResponse.json(
-    {
-      errorStage: "관리자 인증 오류",
-      errorMessage: "관리자 인증이 필요합니다.",
-    },
-    { status: 401 },
-  );
-}
-
-function sanitizeFileName(value: string) {
-  return value
-    .normalize("NFKC")
-    .replace(/[^\w.-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 120);
-}
-
-function errorResponse(
-  errorStage: string,
-  errorMessage: string,
-  error: unknown,
-  status: number,
-) {
-  return NextResponse.json(
-    {
-      errorStage,
-      errorMessage,
-      error: toSafeErrorSummary(error),
-    },
-    { status },
-  );
-}
-
-function toSafeErrorSummary(error: unknown) {
-  if (!error) {
-    return null;
-  }
-
-  if (error instanceof Error) {
-    return { name: error.name, message: error.message };
-  }
-
-  if (typeof error === "object") {
-    const value = error as { name?: unknown; message?: unknown };
-    return {
-      name: typeof value.name === "string" ? value.name : "Error",
-      message: typeof value.message === "string" ? value.message : "Unknown error",
-    };
-  }
-
-  return { name: "Error", message: String(error) };
+function errorResponse(errorMessage: string, status: number) {
+  return NextResponse.json({ errorStage: "파일 업로드 오류", errorMessage }, {
+    status,
+    headers: { "Cache-Control": "no-store" },
+  });
 }
