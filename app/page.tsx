@@ -17,9 +17,14 @@ export default async function Home() {
           <h1 className="mt-3 text-3xl font-bold tracking-tight text-zinc-950 sm:text-4xl">
             배움나눔 퀴즈
           </h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-600">
-            국어, 영어, 수학 퀴즈를 선택해 답안을 제출하세요.
-          </p>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+            <p className="max-w-2xl text-base leading-7 text-zinc-600">
+              국어, 영어, 수학 퀴즈를 선택해 답안을 제출하세요.
+            </p>
+            <Link href="/leaderboard" className="inline-flex min-h-11 items-center justify-center rounded-md bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800">
+              리더보드 보기 →
+            </Link>
+          </div>
         </section>
 
         <section className="mt-6">
