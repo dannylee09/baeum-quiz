@@ -27,7 +27,7 @@ export default async function LeaderboardPage() {
           <p className="text-sm font-semibold text-indigo-700">배움나눔 퀴즈</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-zinc-950">리더보드</h1>
           <p className="mt-3 text-sm leading-6 text-zinc-600">
-            현재 공개된 퀴즈의 학생별 최신 점수를 합산한 순위입니다. 같은 퀴즈를 여러 번 풀면 가장 최근 점수만 계산합니다. 학번과 이름은 일부만 표시합니다.
+            현재 공개된 퀴즈의 학생별 최신 점수를 합산한 순위입니다. 같은 퀴즈를 여러 번 풀면 가장 최근 점수만 계산합니다. 실명은 표시하고 학번은 일부만 표시합니다.
           </p>
         </section>
         <section aria-label="학생별 퀴즈 순위" className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
@@ -48,7 +48,7 @@ export default async function LeaderboardPage() {
                   {entries.map((entry, index) => (
                     <tr key={`${entry.rank}-${index}`}>
                       <td className="px-5 py-4 font-bold text-zinc-950">{entry.rank}</td>
-                      <td className="px-5 py-4 font-medium text-zinc-800">{entry.maskedStudentNo} · {entry.maskedStudentName}</td>
+                      <td className="px-5 py-4 font-medium text-zinc-800">{entry.maskedStudentNo} · {entry.studentName}</td>
                       <td className="px-5 py-4 text-right font-semibold text-zinc-950">{entry.totalScore}점</td>
                       <td className="px-5 py-4 text-right text-zinc-600">{entry.quizCount}개</td>
                     </tr>
@@ -58,7 +58,7 @@ export default async function LeaderboardPage() {
             </div>
           )}
         </section>
-        <p className="text-xs leading-5 text-zinc-500">점수가 같으면 공동 순위로 표시합니다. 전체 학번과 이름은 공개하지 않습니다.</p>
+        <p className="text-xs leading-5 text-zinc-500">점수가 같으면 공동 순위로 표시합니다. 전체 학번은 공개하지 않습니다.</p>
       </div>
     </main>
   );

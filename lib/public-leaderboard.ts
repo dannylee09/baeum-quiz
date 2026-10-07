@@ -1,7 +1,7 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
-import { maskStudentName, maskStudentNo } from "@/lib/mock-data";
+import { maskStudentNo } from "@/lib/mock-data";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { readAllRows } from "@/lib/supabase/read-all";
 
@@ -19,7 +19,7 @@ type ScoreRow = {
 export type LeaderboardEntry = {
   rank: number;
   maskedStudentNo: string;
-  maskedStudentName: string;
+  studentName: string;
   totalScore: number;
   quizCount: number;
 };
@@ -79,7 +79,7 @@ async function queryPublicLeaderboard(): Promise<LeaderboardEntry[]> {
     return {
       rank,
       maskedStudentNo: maskStudentNo(entry.studentNo),
-      maskedStudentName: maskStudentName(entry.studentName),
+      studentName: entry.studentName,
       totalScore: entry.totalScore,
       quizCount: entry.quizCount,
     };
@@ -89,7 +89,7 @@ async function queryPublicLeaderboard(): Promise<LeaderboardEntry[]> {
 // Cache only the already-masked public output to keep leaderboard reads bounded.
 export const getPublicLeaderboard = unstable_cache(
   queryPublicLeaderboard,
-  ["public-leaderboard-v1"],
+  ["public-leaderboard-v2"],
   { revalidate: 60, tags: ["public-leaderboard"] },
 );
 
