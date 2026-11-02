@@ -21,7 +21,7 @@ export default async function AdminLayout({
 
   if (!isPasswordConfigured || !isAuthenticated) {
     return (
-      <main className="min-h-screen bg-zinc-50 px-4 py-10 sm:px-6 lg:px-8">
+      <main className="min-h-screen bg-zinc-50 px-4 py-10 text-zinc-900 sm:px-6 lg:px-8">
         <section className="mx-auto max-w-md rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold text-zinc-500">관리자 보호</p>
           <h1 className="mt-2 text-2xl font-bold text-zinc-950">
@@ -58,7 +58,7 @@ export default async function AdminLayout({
   }
 
   return (
-    <main className="min-h-screen bg-zinc-50 px-4 py-6 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-zinc-50 px-4 py-6 text-zinc-900 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
         <header className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
