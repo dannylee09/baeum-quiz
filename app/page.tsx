@@ -14,6 +14,7 @@ export default async function Home() {
   ]);
   const { quizzes, source, errorMessage } = quizResult;
   const leaderboard = leaderboardResult.entries;
+  const adminEntry = leaderboard?.find((entry) => entry.studentName === "관리자");
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-6 sm:px-6 lg:px-8">
@@ -36,6 +37,16 @@ export default async function Home() {
         </section>
 
         <section aria-labelledby="home-leaderboard-title" className="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
+          {adminEntry ? (
+            <div className="border-b border-indigo-100 bg-indigo-50 px-5 py-3 sm:px-6">
+              <p className="text-sm font-medium leading-6 text-indigo-950">
+                관리자 시연 계정의 기록입니다.{" "}
+                {adminEntry.rank === 1
+                  ? `현재 최고 점수 ${adminEntry.totalScore}점을 기록 중입니다.`
+                  : `현재 ${adminEntry.rank}위, ${adminEntry.totalScore}점입니다.`}
+              </p>
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-100 px-5 py-4 sm:px-6">
             <div>
               <p className="text-sm font-semibold text-indigo-700">이번 퀴즈 순위</p>
