@@ -36,15 +36,7 @@ export default async function Home() {
           </div>
         </section>
 
-        {adminEntry ? (
-          <div className="mt-6 rounded-lg border border-indigo-200 bg-indigo-50 px-5 py-3 sm:px-6">
-            <p className="text-sm font-medium leading-6 text-indigo-950">
-              관리자 시연 점수: {adminEntry.totalScore}점. 전체 퀴즈 만점 기준이며, 참가자 순위에는 포함되지 않습니다.
-            </p>
-          </div>
-        ) : null}
-
-        <section aria-labelledby="home-leaderboard-title" className={`${adminEntry ? "mt-3" : "mt-6"} overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm`}>
+        <section aria-labelledby="home-leaderboard-title" className="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
           <div className="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-100 px-5 py-4 sm:px-6">
             <div>
               <p className="text-sm font-semibold text-indigo-700">이번 퀴즈 순위</p>
@@ -55,6 +47,16 @@ export default async function Home() {
               전체 순위 보기 →
             </Link>
           </div>
+
+          {adminEntry ? (
+            <div className="flex items-center gap-4 border-b border-indigo-100 bg-indigo-50 px-5 py-3 sm:px-6">
+              <span className="shrink-0 text-xs font-semibold text-indigo-700">기준</span>
+              <span className="min-w-0 flex-1 text-sm font-semibold text-indigo-950">
+                관리자 <span className="ml-1 text-xs font-normal text-indigo-700">시연 · 순위 제외</span>
+              </span>
+              <span className="shrink-0 text-sm font-bold text-indigo-950">{adminEntry.totalScore}점</span>
+            </div>
+          ) : null}
 
           {leaderboardResult.failed ? (
             <p className="px-5 py-5 text-sm text-zinc-600 sm:px-6">순위 정보를 잠시 불러오지 못했습니다.</p>
