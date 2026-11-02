@@ -1,20 +1,20 @@
 import Link from "next/link";
 import { getSubjectTone } from "@/lib/mock-data";
-import { getPublicLeaderboard } from "@/lib/public-leaderboard";
+import { getAdministratorDemoRecord, getPublicLeaderboard } from "@/lib/public-leaderboard";
 import { getPublishedQuizSets } from "@/lib/supabase/quiz-queries";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [quizResult, leaderboardResult] = await Promise.all([
+  const [quizResult, leaderboardResult, adminEntry] = await Promise.all([
     getPublishedQuizSets(),
     getPublicLeaderboard()
       .then((entries) => ({ entries, failed: false }))
       .catch(() => ({ entries: null, failed: true })),
+    getAdministratorDemoRecord().catch(() => null),
   ]);
   const { quizzes, source, errorMessage } = quizResult;
   const leaderboard = leaderboardResult.entries;
-  const adminEntry = leaderboard?.find((entry) => entry.studentName === "관리자");
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-6 sm:px-6 lg:px-8">
@@ -36,13 +36,10 @@ export default async function Home() {
           </div>
         </section>
 
-          {adminEntry ? (
+        {adminEntry ? (
           <div className="mt-6 rounded-lg border border-indigo-200 bg-indigo-50 px-5 py-3 sm:px-6">
             <p className="text-sm font-medium leading-6 text-indigo-950">
-              관리자 시연 계정의 기록입니다.{" "}
-              {adminEntry.rank === 1
-                ? `현재 최고 점수 ${adminEntry.totalScore}점을 기록 중입니다.`
-                : `현재 ${adminEntry.rank}위, ${adminEntry.totalScore}점입니다.`}
+              관리자 시연 점수: {adminEntry.totalScore}점. 전체 퀴즈 만점 기준이며, 참가자 순위에는 포함되지 않습니다.
             </p>
           </div>
         ) : null}
