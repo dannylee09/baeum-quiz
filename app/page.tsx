@@ -36,17 +36,18 @@ export default async function Home() {
           </div>
         </section>
 
-        <section aria-labelledby="home-leaderboard-title" className="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
           {adminEntry ? (
-            <div className="border-b border-indigo-100 bg-indigo-50 px-5 py-3 sm:px-6">
-              <p className="text-sm font-medium leading-6 text-indigo-950">
-                관리자 시연 계정의 기록입니다.{" "}
-                {adminEntry.rank === 1
-                  ? `현재 최고 점수 ${adminEntry.totalScore}점을 기록 중입니다.`
-                  : `현재 ${adminEntry.rank}위, ${adminEntry.totalScore}점입니다.`}
-              </p>
-            </div>
-          ) : null}
+          <div className="mt-6 rounded-lg border border-indigo-200 bg-indigo-50 px-5 py-3 sm:px-6">
+            <p className="text-sm font-medium leading-6 text-indigo-950">
+              관리자 시연 계정의 기록입니다.{" "}
+              {adminEntry.rank === 1
+                ? `현재 최고 점수 ${adminEntry.totalScore}점을 기록 중입니다.`
+                : `현재 ${adminEntry.rank}위, ${adminEntry.totalScore}점입니다.`}
+            </p>
+          </div>
+        ) : null}
+
+        <section aria-labelledby="home-leaderboard-title" className={`${adminEntry ? "mt-3" : "mt-6"} overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm`}>
           <div className="flex flex-wrap items-end justify-between gap-3 border-b border-zinc-100 px-5 py-4 sm:px-6">
             <div>
               <p className="text-sm font-semibold text-indigo-700">이번 퀴즈 순위</p>
