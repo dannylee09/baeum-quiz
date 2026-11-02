@@ -24,7 +24,7 @@ export type LeaderboardEntry = {
   quizCount: number;
 };
 
-async function queryPublicLeaderboard(): Promise<LeaderboardEntry[]> {
+async function queryPublicLeaderboard(administratorOnly = false): Promise<LeaderboardEntry[]> {
   const supabase = createAdminSupabaseClient();
   const cutoff = new Date().toISOString();
   const { data: quizData, error: quizError } = await supabase
@@ -47,7 +47,7 @@ async function queryPublicLeaderboard(): Promise<LeaderboardEntry[]> {
   const latestByStudentAndQuiz = new Map<string, ScoreRow>();
   for (const row of rows) {
     const studentNo = row.student_no.trim();
-    if (!studentNo) continue;
+    if (!studentNo || (administratorOnly ? studentNo !== "21017" : studentNo === "21017")) continue;
     const key = JSON.stringify([studentNo, row.quiz_set_id]);
     const current = latestByStudentAndQuiz.get(key);
     if (!current || isNewer(row, current)) latestByStudentAndQuiz.set(key, row);
@@ -89,7 +89,13 @@ async function queryPublicLeaderboard(): Promise<LeaderboardEntry[]> {
 // Cache only the already-masked public output to keep leaderboard reads bounded.
 export const getPublicLeaderboard = unstable_cache(
   queryPublicLeaderboard,
-  ["public-leaderboard-v2"],
+  ["public-leaderboard-v3-participants"],
+  { revalidate: 60, tags: ["public-leaderboard"] },
+);
+
+export const getAdministratorDemoRecord = unstable_cache(
+  async () => (await queryPublicLeaderboard(true))[0] ?? null,
+  ["administrator-demo-record-v1"],
   { revalidate: 60, tags: ["public-leaderboard"] },
 );
 
