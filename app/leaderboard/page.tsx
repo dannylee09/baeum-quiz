@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { getPublicLeaderboard } from "@/lib/public-leaderboard";
+import { getAdministratorDemoRecord, getPublicLeaderboard } from "@/lib/public-leaderboard";
 
 export const dynamic = "force-dynamic";
 
 export default async function LeaderboardPage() {
+  const adminEntry = await getAdministratorDemoRecord().catch(() => null);
   let entries: Awaited<ReturnType<typeof getPublicLeaderboard>>;
   try {
     entries = await getPublicLeaderboard();
@@ -45,6 +46,14 @@ export default async function LeaderboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
+                  {adminEntry ? (
+                    <tr className="bg-indigo-50">
+                      <td className="px-5 py-4 text-xs font-semibold text-indigo-700">기준</td>
+                      <td className="px-5 py-4 font-medium text-indigo-950">관리자 <span className="text-xs font-normal text-indigo-700">시연 · 순위 제외</span></td>
+                      <td className="px-5 py-4 text-right font-semibold text-indigo-950">{adminEntry.totalScore}점</td>
+                      <td className="px-5 py-4 text-right text-indigo-700">{adminEntry.quizCount}개</td>
+                    </tr>
+                  ) : null}
                   {entries.map((entry, index) => (
                     <tr key={`${entry.rank}-${index}`}>
                       <td className="px-5 py-4 font-bold text-zinc-950">{entry.rank}</td>
